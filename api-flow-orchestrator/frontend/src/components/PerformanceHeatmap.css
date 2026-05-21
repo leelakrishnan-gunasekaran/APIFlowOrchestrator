@@ -1,0 +1,266 @@
+.performance-heatmap {
+  background: white;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-top: 1.5rem;
+}
+
+.performance-heatmap.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+}
+
+.heatmap-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.header-left h3 {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.25rem;
+  color: #111827;
+}
+
+.header-left p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.time-range-select {
+  padding: 0.5rem 1rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.time-range-select:hover {
+  border-color: #9ca3af;
+}
+
+.time-range-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.overall-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.stat-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.25rem;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.stat-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  background: #e0e7ff;
+  color: #4f46e5;
+}
+
+.stat-icon.positive {
+  background: #dcfce7;
+  color: #16a34a;
+}
+
+.stat-icon.negative {
+  background: #fee2e2;
+  color: #dc2626;
+}
+
+.stat-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.stat-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.stat-value.positive {
+  color: #16a34a;
+}
+
+.stat-value.negative {
+  color: #dc2626;
+}
+
+.stat-subtext {
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.chart-container {
+  margin-bottom: 2rem;
+}
+
+.chart-container h4 {
+  margin: 0 0 1rem 0;
+  font-size: 1rem;
+  color: #111827;
+}
+
+.custom-tooltip {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  padding: 1rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.tooltip-title {
+  margin: 0 0 0.75rem 0;
+  font-weight: 600;
+  color: #111827;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.tooltip-content p {
+  margin: 0.25rem 0;
+  font-size: 0.875rem;
+  color: #374151;
+}
+
+.performance-table {
+  margin-bottom: 2rem;
+}
+
+.performance-table h4 {
+  margin: 0 0 1rem 0;
+  font-size: 1rem;
+  color: #111827;
+}
+
+.performance-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.performance-table thead {
+  background: #f9fafb;
+}
+
+.performance-table th {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: #374151;
+  border-bottom: 2px solid #e5e7eb;
+}
+
+.performance-table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  color: #6b7280;
+}
+
+.performance-table tbody tr:hover {
+  background: #f9fafb;
+}
+
+.performance-table .api-name {
+  font-weight: 500;
+  color: #111827;
+}
+
+.performance-table .positive {
+  color: #16a34a;
+  font-weight: 500;
+}
+
+.performance-table .negative {
+  color: #dc2626;
+  font-weight: 500;
+}
+
+.performance-badge {
+  display: inline-block;
+  padding: 0.25rem 0.625rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: white;
+  text-transform: uppercase;
+}
+
+.performance-legend {
+  padding: 1.5rem;
+  background: #f9fafb;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+}
+
+.performance-legend h4 {
+  margin: 0 0 1rem 0;
+  font-size: 0.875rem;
+  color: #111827;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.legend-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  color: #374151;
+}
+
+.legend-color {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3rem;
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+/* Made with Bob */

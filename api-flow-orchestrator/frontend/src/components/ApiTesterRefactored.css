@@ -1,0 +1,32 @@
+/* Import base ApiTester styles */
+@import './ApiTester.css';
+
+/* Override layout for sidebar integration */
+.api-tester-layout {
+  display: flex;
+  gap: 0;
+  height: calc(100vh - 120px);
+  position: relative;
+}
+
+.api-tester-header {
+  padding: 24px 32px;
+  border-bottom: 1px solid var(--border-color, #e0e0e0);
+  background: var(--bg-primary, #fff);
+}
+
+.api-tester-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Remove old history panel styles - they're replaced by CollectionsSidebar */
+.history-panel,
+.history-toggle-button,
+.header-actions {
+  display: none !important;
+}
+
+/* Made with Bob */

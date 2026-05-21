@@ -1,0 +1,15 @@
+package com.apiflow.repository;
+
+import com.apiflow.model.ApiRequest;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import java.util.List;
+
+@Repository
+public interface ApiRequestRepository extends JpaRepository<ApiRequest, Long> {
+    List<ApiRequest> findByCollectionIdOrderBySequenceOrder(Long collectionId);
+    List<ApiRequest> findByFolderIdOrderBySequenceOrder(Long folderId);
+    List<ApiRequest> findByCollectionIdAndFolderIsNullOrderBySequenceOrder(Long collectionId);
+}
+
+// Made with Bob

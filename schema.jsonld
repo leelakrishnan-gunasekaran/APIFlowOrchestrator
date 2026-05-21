@@ -1,0 +1,694 @@
+{
+  "@context": {
+    "orch": "https://ontology.orchestrator.org/orchestrator#",
+    "schema": "http://schema.org/",
+    "id": "@id",
+    "type": "@type",
+    "name": "schema:name",
+    "description": "schema:description",
+    "attributes": "orch:attributes",
+    "identityKey": "orch:identityKey",
+    "humanRef": "orch:humanRef",
+    "invariant": "orch:invariant",
+    "hasState": { "@id": "orch:hasState", "@type": "@id" },
+    "initialState": { "@id": "orch:initialState", "@type": "@id" },
+    "terminalStates": { "@id": "orch:terminalStates", "@type": "@id" },
+    "relatesTo": { "@id": "orch:relatesTo", "@type": "@id" },
+    "emitsEvent": { "@id": "orch:emitsEvent", "@type": "@id" },
+    "from": { "@id": "orch:from", "@type": "@id" },
+    "to": { "@id": "orch:to", "@type": "@id" },
+    "via": { "@id": "orch:via", "@type": "@id" },
+    "precondition": "orch:precondition",
+    "postcondition": "orch:postcondition",
+    "Entity": "orch:Entity",
+    "Operation": "orch:Operation",
+    "State": "orch:State"
+  },
+  "@graph": [
+    {
+      "id": "orch:ApiGroup",
+      "type": "Entity",
+      "name": "ApiGroup",
+      "description": "A named collection of sequentially ordered API calls representing a single business form flow such as the Onboarding Group.",
+      "identityKey": "groupId: UUID",
+      "humanRef": "groupCode",
+      "attributes": {
+        "groupId": "string",
+        "groupName": "string",
+        "description": "string",
+        "executionOrder": "number",
+        "rollbackEnabled": "boolean",
+        "authProfileId": "string|null",
+        "status": "DRAFT|CONFIGURED|RUNNING|COMPLETED|FAILED|ROLLED_BACK",
+        "createdAt": "datetime",
+        "updatedAt": "datetime"
+      },
+      "invariant": [
+        "An ApiGroup must have at least one ApiNode before execution",
+        "ApiNodes must execute in the defined sequence order",
+        "Rollback can only be triggered when status is FAILED",
+        "An ApiGroup must be linked to a valid AuthProfile before execution if auth is required"
+      ],
+      "hasState": [
+        "orch:ApiGroupDraft",
+        "orch:ApiGroupConfigured",
+        "orch:ApiGroupRunning",
+        "orch:ApiGroupCompleted",
+        "orch:ApiGroupFailed",
+        "orch:ApiGroupRolledBack"
+      ],
+      "initialState": "orch:ApiGroupDraft",
+      "terminalStates": [
+        "orch:ApiGroupCompleted",
+        "orch:ApiGroupRolledBack"
+      ],
+      "relatesTo": [
+        "orch:ApiNode",
+        "orch:AuthProfile",
+        "orch:HookVariable",
+        "orch:DataFeedFile",
+        "orch:ExportReport"
+      ],
+      "emitsEvent": [
+        "orch:ApiGroupConfigured",
+        "orch:ApiGroupCompleted",
+        "orch:ApiGroupFailed",
+        "orch:ApiGroupRolledBack"
+      ]
+    },
+    {
+      "id": "orch:ApiNode",
+      "type": "Entity",
+      "name": "ApiNode",
+      "description": "An individual API call within an ApiGroup, represented as a draggable node in the visual orchestration canvas.",
+      "identityKey": "nodeId: UUID",
+      "humanRef": "nodeCode",
+      "attributes": {
+        "nodeId": "string",
+        "groupId": "string",
+        "sequenceOrder": "number",
+        "httpMethod": "GET|POST|PUT|PATCH|DELETE",
+        "endpointUrl": "string",
+        "headers": "object|null",
+        "authType": "NONE|BEARER|OAUTH2|JWT|BASIC",
+        "requestPayloadTemplate": "string|null",
+        "expectedStatusCode": "number",
+        "exportFlag": "boolean",
+        "hookJsonPath": "string|null",
+        "hookRegex": "string|null",
+        "createdAt": "datetime"
+      },
+      "invariant": [
+        "A HookVariable must be resolved before the next ApiNode in sequence executes",
+        "exportFlag must be explicitly set before execution",
+        "sequenceOrder must be unique within an ApiGroup",
+        "endpointUrl must be a valid URL format"
+      ],
+      "relatesTo": [
+        "orch:HookVariable",
+        "orch:PerformanceBaseline",
+        "orch:ApiRunResult",
+        "orch:FieldMapping"
+      ],
+      "emitsEvent": [
+        "orch:ApiRunResult"
+      ]
+    },
+    {
+      "id": "orch:HookVariable",
+      "type": "Entity",
+      "name": "HookVariable",
+      "description": "A variable extracted from an API response via JSONPath or Regex and automatically injected into subsequent API requests as a placeholder.",
+      "identityKey": "hookId: UUID",
+      "humanRef": "variableName",
+      "attributes": {
+        "hookId": "string",
+        "variableName": "string",
+        "extractionType": "JSONPATH|REGEX",
+        "extractionExpression": "string",
+        "resolvedValue": "string|null",
+        "scope": "GROUP|PROJECT",
+        "sourceNodeId": "string",
+        "createdAt": "datetime"
+      },
+      "invariant": [
+        "A HookVariable must have a valid JSONPath or Regex expression",
+        "Scope must be either GROUP or PROJECT",
+        "resolvedValue must be populated before downstream ApiNode execution",
+        "variableName must be unique within its scope"
+      ],
+      "relatesTo": [
+        "orch:ApiNode",
+        "orch:ApiGroup"
+      ]
+    },
+    {
+      "id": "orch:ExecutionRun",
+      "type": "Entity",
+      "name": "ExecutionRun",
+      "description": "A single execution instance of an ApiGroup, tracking the overall run status, trigger source, and timing.",
+      "identityKey": "runId: UUID",
+      "humanRef": "runCode",
+      "attributes": {
+        "runId": "string",
+        "groupId": "string",
+        "triggerSource": "MANUAL|BATCH|SCHEDULED",
+        "status": "PENDING|IN_PROGRESS|COMPLETED|FAILED|PARTIALLY_COMPLETED",
+        "totalNodes": "number",
+        "completedNodes": "number",
+        "failedNodes": "number",
+        "startedAt": "datetime",
+        "completedAt": "datetime|null",
+        "triggeredBy": "string"
+      },
+      "invariant": [
+        "An ExecutionRun must be linked to a valid ApiGroup",
+        "completedNodes plus failedNodes must not exceed totalNodes",
+        "status must transition sequentially and cannot regress",
+        "completedAt must be set when status reaches COMPLETED or FAILED"
+      ],
+      "hasState": [
+        "orch:RunPending",
+        "orch:RunInProgress",
+        "orch:RunCompleted",
+        "orch:RunFailed",
+        "orch:RunPartiallyCompleted"
+      ],
+      "initialState": "orch:RunPending",
+      "terminalStates": [
+        "orch:RunCompleted",
+        "orch:RunFailed",
+        "orch:RunPartiallyCompleted"
+      ],
+      "relatesTo": [
+        "orch:ApiGroup",
+        "orch:ApiRunResult",
+        "orch:ExportReport"
+      ],
+      "emitsEvent": [
+        "orch:RunCompleted",
+        "orch:RunFailed"
+      ]
+    },
+    {
+      "id": "orch:ApiRunResult",
+      "type": "Entity",
+      "name": "ApiRunResult",
+      "description": "The captured result of a single ApiNode execution within an ExecutionRun, including status code, response body, and latency telemetry.",
+      "identityKey": "resultId: UUID",
+      "humanRef": "resultCode",
+      "attributes": {
+        "resultId": "string",
+        "runId": "string",
+        "nodeId": "string",
+        "statusCode": "number",
+        "responseBody": "string|null",
+        "requestSentAt": "datetime",
+        "timeToFirstByte": "number",
+        "responseReceivedAt": "datetime",
+        "latencyMs": "number",
+        "passed": "boolean",
+        "exportIncluded": "boolean",
+        "regressionFlag": "boolean"
+      },
+      "invariant": [
+        "latencyMs must be calculated as responseReceivedAt minus requestSentAt",
+        "exportIncluded must reflect the exportFlag set on the parent ApiNode",
+        "regressionFlag must be set to true if latencyMs exceeds PerformanceBaseline by more than 20 percent",
+        "resultId must be unique per ExecutionRun and ApiNode combination"
+      ],
+      "relatesTo": [
+        "orch:ExecutionRun",
+        "orch:ApiNode",
+        "orch:PerformanceBaseline",
+        "orch:ExportReport"
+      ]
+    },
+    {
+      "id": "orch:PerformanceBaseline",
+      "type": "Entity",
+      "name": "PerformanceBaseline",
+      "description": "Historical average performance data for a specific ApiNode, used to detect latency regressions across execution runs.",
+      "identityKey": "baselineId: UUID",
+      "humanRef": "baselineRef",
+      "attributes": {
+        "baselineId": "string",
+        "nodeId": "string",
+        "averageLatencyMs": "number",
+        "minLatencyMs": "number",
+        "maxLatencyMs": "number",
+        "sampleCount": "number",
+        "regressionThresholdPercent": "number",
+        "lastUpdatedAt": "datetime"
+      },
+      "invariant": [
+        "regressionThresholdPercent defaults to 20",
+        "averageLatencyMs must be recalculated after every ExecutionRun",
+        "sampleCount must be incremented after each ApiRunResult is recorded",
+        "A PerformanceBaseline must exist per ApiNode before regression comparison is applied"
+      ],
+      "relatesTo": [
+        "orch:ApiNode",
+        "orch:ApiRunResult"
+      ]
+    },
+    {
+      "id": "orch:DataFeedFile",
+      "type": "Entity",
+      "name": "DataFeedFile",
+      "description": "A CSV or Excel file uploaded by a user to drive data-driven batch testing of an ApiGroup across multiple data rows.",
+      "identityKey": "feedId: UUID",
+      "humanRef": "feedFileName",
+      "attributes": {
+        "feedId": "string",
+        "groupId": "string",
+        "fileName": "string",
+        "fileType": "CSV|XLSX",
+        "totalRows": "number",
+        "processedRows": "number",
+        "failedRows": "number",
+        "status": "UPLOADED|MAPPED|BATCH_RUNNING|BATCH_COMPLETED|BATCH_FAILED",
+        "uploadedAt": "datetime",
+        "uploadedBy": "string"
+      },
+      "invariant": [
+        "DataFeedFile must have at least one FieldMapping before batch execution begins",
+        "totalRows must be greater than zero",
+        "fileType must be CSV or XLSX",
+        "status must not move to BATCH_RUNNING unless all required columns are mapped"
+      ],
+      "hasState": [
+        "orch:FeedUploaded",
+        "orch:FeedMapped",
+        "orch:FeedBatchRunning",
+        "orch:FeedBatchCompleted",
+        "orch:FeedBatchFailed"
+      ],
+      "initialState": "orch:FeedUploaded",
+      "terminalStates": [
+        "orch:FeedBatchCompleted",
+        "orch:FeedBatchFailed"
+      ],
+      "relatesTo": [
+        "orch:FieldMapping",
+        "orch:ApiNode",
+        "orch:ApiGroup"
+      ],
+      "emitsEvent": [
+        "orch:FeedBatchCompleted",
+        "orch:FeedBatchFailed"
+      ]
+    },
+    {
+      "id": "orch:FieldMapping",
+      "type": "Entity",
+      "name": "FieldMapping",
+      "description": "A mapping definition linking a column header in a DataFeedFile to an API payload placeholder variable on a target ApiNode.",
+      "identityKey": "mappingId: UUID",
+      "humanRef": "mappingRef",
+      "attributes": {
+        "mappingId": "string",
+        "feedId": "string",
+        "columnHeader": "string",
+        "targetPlaceholder": "string",
+        "targetNodeId": "string",
+        "dataType": "string|number|boolean|date",
+        "required": "boolean",
+        "createdAt": "datetime"
+      },
+      "invariant": [
+        "columnHeader must match an actual column in the linked DataFeedFile",
+        "targetPlaceholder must match a placeholder declared in the target ApiNode payload template",
+        "A FieldMapping must reference a valid ApiNode within the same ApiGroup",
+        "required mappings must be resolved for every batch row before execution"
+      ],
+      "relatesTo": [
+        "orch:DataFeedFile",
+        "orch:ApiNode"
+      ]
+    },
+    {
+      "id": "orch:ExportReport",
+      "type": "Entity",
+      "name": "ExportReport",
+      "description": "A consolidated output report generated after an ExecutionRun, containing only the ApiRunResults where exportFlag was set to true.",
+      "identityKey": "reportId: UUID",
+      "humanRef": "reportCode",
+      "attributes": {
+        "reportId": "string",
+        "runId": "string",
+        "format": "CSV|XLSX|JSON",
+        "status": "GENERATING|READY|DOWNLOADED",
+        "totalIncludedResults": "number",
+        "generatedAt": "datetime|null",
+        "downloadedAt": "datetime|null",
+        "downloadUrl": "string|null"
+      },
+      "invariant": [
+        "ExportReport must only include ApiRunResults where exportFlag is true",
+        "An ExportReport must be linked to a completed ExecutionRun",
+        "format must be one of CSV, XLSX, or JSON",
+        "downloadUrl must be set before status transitions to READY"
+      ],
+      "hasState": [
+        "orch:ReportGenerating",
+        "orch:ReportReady",
+        "orch:ReportDownloaded"
+      ],
+      "initialState": "orch:ReportGenerating",
+      "terminalStates": [
+        "orch:ReportDownloaded"
+      ],
+      "relatesTo": [
+        "orch:ExecutionRun",
+        "orch:ApiRunResult"
+      ],
+      "emitsEvent": [
+        "orch:ReportReady"
+      ]
+    },
+    {
+      "id": "orch:AuthProfile",
+      "type": "Entity",
+      "name": "AuthProfile",
+      "description": "A reusable authentication configuration applied globally to an ApiGroup, supporting OAuth2 and JWT strategies.",
+      "identityKey": "authProfileId: UUID",
+      "humanRef": "authProfileName",
+      "attributes": {
+        "authProfileId": "string",
+        "profileName": "string",
+        "authType": "NONE|BEARER|OAUTH2|JWT|BASIC",
+        "tokenEndpoint": "string|null",
+        "clientId": "string|null",
+        "clientSecret": "string|null",
+        "tokenExpirySeconds": "number|null",
+        "autoRefresh": "boolean",
+        "createdAt": "datetime"
+      },
+      "invariant": [
+        "An AuthProfile with authType OAUTH2 must have a valid tokenEndpoint",
+        "clientSecret must be stored encrypted at rest",
+        "autoRefresh must be true when tokenExpirySeconds is set",
+        "An AuthProfile can be shared across multiple ApiGroups"
+      ],
+      "relatesTo": [
+        "orch:ApiGroup",
+        "orch:ApiNode"
+      ]
+    },
+    {
+      "id": "orch:ApiGroupDraft",
+      "type": "State",
+      "name": "ApiGroupDraft",
+      "description": "The ApiGroup has been created but not yet configured with nodes or authentication."
+    },
+    {
+      "id": "orch:ApiGroupConfigured",
+      "type": "State",
+      "name": "ApiGroupConfigured",
+      "description": "The ApiGroup has at least one ApiNode defined and is ready for execution."
+    },
+    {
+      "id": "orch:ApiGroupRunning",
+      "type": "State",
+      "name": "ApiGroupRunning",
+      "description": "The ApiGroup is actively being executed by the Execution Engine."
+    },
+    {
+      "id": "orch:ApiGroupCompleted",
+      "type": "State",
+      "name": "ApiGroupCompleted",
+      "description": "All ApiNodes in the ApiGroup have completed successfully."
+    },
+    {
+      "id": "orch:ApiGroupFailed",
+      "type": "State",
+      "name": "ApiGroupFailed",
+      "description": "One or more ApiNodes in the ApiGroup have failed during execution."
+    },
+    {
+      "id": "orch:ApiGroupRolledBack",
+      "type": "State",
+      "name": "ApiGroupRolledBack",
+      "description": "Rollback APIs have been triggered to clean up state after a failure."
+    },
+    {
+      "id": "orch:RunPending",
+      "type": "State",
+      "name": "RunPending",
+      "description": "The ExecutionRun has been created and is queued but has not yet started."
+    },
+    {
+      "id": "orch:RunInProgress",
+      "type": "State",
+      "name": "RunInProgress",
+      "description": "The ExecutionRun is actively processing ApiNodes in sequence."
+    },
+    {
+      "id": "orch:RunCompleted",
+      "type": "State",
+      "name": "RunCompleted",
+      "description": "All ApiNodes in the ExecutionRun have been processed successfully."
+    },
+    {
+      "id": "orch:RunFailed",
+      "type": "State",
+      "name": "RunFailed",
+      "description": "The ExecutionRun has terminated due to an unrecoverable ApiNode failure."
+    },
+    {
+      "id": "orch:RunPartiallyCompleted",
+      "type": "State",
+      "name": "RunPartiallyCompleted",
+      "description": "Some ApiNodes completed successfully but others failed within the ExecutionRun."
+    },
+    {
+      "id": "orch:FeedUploaded",
+      "type": "State",
+      "name": "FeedUploaded",
+      "description": "The DataFeedFile has been uploaded and is awaiting column-to-field mapping."
+    },
+    {
+      "id": "orch:FeedMapped",
+      "type": "State",
+      "name": "FeedMapped",
+      "description": "All required columns in the DataFeedFile have been mapped to API payload fields."
+    },
+    {
+      "id": "orch:FeedBatchRunning",
+      "type": "State",
+      "name": "FeedBatchRunning",
+      "description": "The batch execution is actively iterating through rows in the DataFeedFile."
+    },
+    {
+      "id": "orch:FeedBatchCompleted",
+      "type": "State",
+      "name": "FeedBatchCompleted",
+      "description": "All rows in the DataFeedFile have been processed successfully."
+    },
+    {
+      "id": "orch:FeedBatchFailed",
+      "type": "State",
+      "name": "FeedBatchFailed",
+      "description": "The batch execution has failed due to data or API errors during row processing."
+    },
+    {
+      "id": "orch:ReportGenerating",
+      "type": "State",
+      "name": "ReportGenerating",
+      "description": "The ExportReport is being assembled from selected ApiRunResults."
+    },
+    {
+      "id": "orch:ReportReady",
+      "type": "State",
+      "name": "ReportReady",
+      "description": "The ExportReport has been generated and is available for download."
+    },
+    {
+      "id": "orch:ReportDownloaded",
+      "type": "State",
+      "name": "ReportDownloaded",
+      "description": "The ExportReport has been downloaded by the user."
+    },
+    {
+      "id": "orch:ConfigureGroup",
+      "type": "Operation",
+      "name": "ConfigureGroup",
+      "description": "Transitions an ApiGroup from Draft to Configured by adding ApiNodes, HookVariables, and an AuthProfile.",
+      "from": "orch:ApiGroupDraft",
+      "to": "orch:ApiGroupConfigured",
+      "precondition": [
+        "At least one ApiNode must be added to the ApiGroup",
+        "Each ApiNode must have a valid endpointUrl and httpMethod",
+        "AuthProfile must be assigned if any ApiNode requires authentication"
+      ],
+      "postcondition": [
+        "ApiGroup status is set to CONFIGURED",
+        "All ApiNodes are validated and sequenced",
+        "HookVariable expressions are verified for syntax"
+      ]
+    },
+    {
+      "id": "orch:ExecuteGroup",
+      "type": "Operation",
+      "name": "ExecuteGroup",
+      "description": "Triggers execution of a configured ApiGroup, creating an ExecutionRun and beginning sequential ApiNode processing.",
+      "from": "orch:ApiGroupConfigured",
+      "to": "orch:ApiGroupRunning",
+      "precondition": [
+        "ApiGroup must be in CONFIGURED status",
+        "All HookVariable expressions must be syntactically valid",
+        "AuthProfile token must be active or auto-refresh must be enabled"
+      ],
+      "postcondition": [
+        "An ExecutionRun record is created with status PENDING",
+        "ApiGroup status transitions to RUNNING",
+        "Sequential processing begins from the first ApiNode"
+      ]
+    },
+    {
+      "id": "orch:CompleteExecution",
+      "type": "Operation",
+      "name": "CompleteExecution",
+      "description": "Marks an ExecutionRun and its parent ApiGroup as Completed after all ApiNodes pass successfully.",
+      "from": "orch:ApiGroupRunning",
+      "to": "orch:ApiGroupCompleted",
+      "precondition": [
+        "All ApiNodes in the ApiGroup must have returned expected status codes",
+        "All HookVariables must have been resolved during the run",
+        "No unhandled exceptions must be present in the run"
+      ],
+      "postcondition": [
+        "ApiGroup status set to COMPLETED",
+        "ExecutionRun status set to COMPLETED",
+        "PerformanceBaseline updated with new latency samples",
+        "ExportReport generation is triggered for flagged ApiRunResults"
+      ]
+    },
+    {
+      "id": "orch:FailExecution",
+      "type": "Operation",
+      "name": "FailExecution",
+      "description": "Transitions the ApiGroup and ExecutionRun to Failed when a critical ApiNode failure is detected.",
+      "from": "orch:ApiGroupRunning",
+      "to": "orch:ApiGroupFailed",
+      "precondition": [
+        "At least one ApiNode must have returned an unexpected status code or timeout",
+        "Retry policy must have been exhausted if configured"
+      ],
+      "postcondition": [
+        "ApiGroup status set to FAILED",
+        "ExecutionRun status set to FAILED",
+        "Failure details recorded in ApiRunResult for the failing node",
+        "Rollback is available if rollbackEnabled is true on the ApiGroup"
+      ]
+    },
+    {
+      "id": "orch:TriggerRollback",
+      "type": "Operation",
+      "name": "TriggerRollback",
+      "description": "Executes configured rollback API calls to clean up previously completed steps after an ApiGroup failure.",
+      "from": "orch:ApiGroupFailed",
+      "to": "orch:ApiGroupRolledBack",
+      "precondition": [
+        "ApiGroup must have rollbackEnabled set to true",
+        "ApiGroup must be in FAILED status",
+        "Rollback ApiNodes must be defined for each completed step"
+      ],
+      "postcondition": [
+        "Rollback API calls are executed in reverse sequence order",
+        "ApiGroup status set to ROLLED_BACK",
+        "Rollback results are recorded in ApiRunResult entries"
+      ]
+    },
+    {
+      "id": "orch:UploadDataFeed",
+      "type": "Operation",
+      "name": "UploadDataFeed",
+      "description": "Processes an uploaded DataFeedFile and transitions it to Mapped status after column headers are linked to API fields.",
+      "from": "orch:FeedUploaded",
+      "to": "orch:FeedMapped",
+      "precondition": [
+        "DataFeedFile must be a valid CSV or XLSX format",
+        "File must contain at least one data row beyond the header",
+        "At least one FieldMapping must be created linking a column to an ApiNode placeholder"
+      ],
+      "postcondition": [
+        "DataFeedFile status set to MAPPED",
+        "FieldMapping records created for each configured column link",
+        "Total row count is calculated and stored on the DataFeedFile"
+      ]
+    },
+    {
+      "id": "orch:RunBatchExecution",
+      "type": "Operation",
+      "name": "RunBatchExecution",
+      "description": "Initiates batch execution by iterating through all rows in a mapped DataFeedFile and running the ApiGroup for each row.",
+      "from": "orch:FeedMapped",
+      "to": "orch:FeedBatchRunning",
+      "precondition": [
+        "DataFeedFile must be in MAPPED status",
+        "All required FieldMappings must be present",
+        "ApiGroup must be in CONFIGURED status"
+      ],
+      "postcondition": [
+        "DataFeedFile status set to BATCH_RUNNING",
+        "A separate ExecutionRun is created for each data row",
+        "Dynamic variable injection is activated for each row iteration"
+      ]
+    },
+    {
+      "id": "orch:CompleteBatch",
+      "type": "Operation",
+      "name": "CompleteBatch",
+      "description": "Marks a DataFeedFile batch execution as completed after all rows have been processed.",
+      "from": "orch:FeedBatchRunning",
+      "to": "orch:FeedBatchCompleted",
+      "precondition": [
+        "All rows in the DataFeedFile must have been attempted",
+        "processedRows plus failedRows must equal totalRows"
+      ],
+      "postcondition": [
+        "DataFeedFile status set to BATCH_COMPLETED",
+        "Batch summary metrics are recorded",
+        "ExportReport generation is triggered if any ApiNode had exportFlag true"
+      ]
+    },
+    {
+      "id": "orch:GenerateReport",
+      "type": "Operation",
+      "name": "GenerateReport",
+      "description": "Initiates the creation of an ExportReport from an ExecutionRun, collecting only the ApiRunResults with exportFlag enabled.",
+      "from": "orch:RunCompleted",
+      "to": "orch:ReportGenerating",
+      "precondition": [
+        "ExecutionRun must be in COMPLETED status",
+        "At least one ApiRunResult must have exportIncluded set to true",
+        "Report format must be specified as CSV, XLSX, or JSON"
+      ],
+      "postcondition": [
+        "ExportReport record is created with status GENERATING",
+        "Only exportIncluded ApiRunResults are queued for inclusion",
+        "Report assembly process is initiated asynchronously"
+      ]
+    },
+    {
+      "id": "orch:PublishReport",
+      "type": "Operation",
+      "name": "PublishReport",
+      "description": "Finalizes the ExportReport and transitions it to Ready status, making it available for user download.",
+      "from": "orch:ReportGenerating",
+      "to": "orch:ReportReady",
+      "precondition": [
+        "ExportReport must be in GENERATING status",
+        "All selected ApiRunResults must have been compiled into the report file",
+        "downloadUrl must be generated and accessible"
+      ],
+      "postcondition": [
+        "ExportReport status set to READY",
+        "downloadUrl is populated on the ExportReport",
+        "User is notified that the report is available for download"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,337 @@
+/* Global Theme Overrides - Apply theme variables to all components */
+
+/* Cards and Containers */
+.control-bar,
+.api-group-card,
+.api-card,
+.execution-card,
+.result-card,
+.modal-content,
+.panel,
+.section,
+.container,
+.box {
+  background: var(--card-bg) !important;
+  border-color: var(--border-color) !important;
+  box-shadow: 0 1px 3px var(--card-shadow) !important;
+}
+
+/* Only apply to direct text in these containers */
+.control-bar > *,
+.api-group-card > *,
+.api-card > *,
+.panel > *,
+.section > * {
+  color: var(--text-primary);
+}
+
+/* Headers and Titles */
+h1, h2, h3, h4, h5, h6 {
+  color: var(--text-primary) !important;
+}
+
+.title,
+.heading,
+.header-title {
+  color: var(--text-primary) !important;
+}
+
+/* Text Elements - Remove broad selectors */
+.text-secondary,
+.subtitle,
+.description {
+  color: var(--text-secondary) !important;
+}
+
+/* Inputs and Form Elements */
+input,
+textarea,
+select,
+.input,
+.form-control {
+  background-color: var(--input-bg) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--input-border) !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--text-tertiary) !important;
+}
+
+/* Buttons - Be more specific */
+.btn:not(.btn-primary):not([class*="method-"]):not([class*="status-"]),
+.button:not(.button-primary) {
+  background-color: var(--button-secondary) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+.btn-primary,
+.button-primary,
+.primary-button,
+button[class*="primary"] {
+  background-color: var(--button-primary) !important;
+  color: white !important;
+}
+
+.btn-primary:hover,
+.button-primary:hover {
+  background-color: var(--button-primary-hover) !important;
+}
+
+.btn-secondary,
+.button-secondary {
+  background-color: var(--button-secondary) !important;
+  color: var(--text-primary) !important;
+}
+
+.btn-secondary:hover,
+.button-secondary:hover {
+  background-color: var(--button-secondary-hover) !important;
+}
+
+/* Code Blocks */
+code,
+pre,
+.code-block,
+.code-content {
+  background-color: var(--code-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Borders */
+.border,
+.bordered,
+hr {
+  border-color: var(--border-color) !important;
+}
+
+/* Panels and Sections */
+.panel-header,
+.section-header,
+.header {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Lists */
+.list-item,
+.item,
+.row {
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+.list-item:hover,
+.item:hover,
+.row:hover {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* Modals and Overlays */
+.modal-overlay {
+  background-color: rgba(0, 0, 0, 0.5) !important;
+}
+
+.modal-header,
+.modal-body,
+.modal-footer {
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Tables */
+table {
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+th {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+td {
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+tr:hover td {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* Status Badges */
+.badge,
+.tag,
+.label {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Success States */
+.success,
+.success-badge,
+.status-success {
+  background-color: var(--success-bg) !important;
+  color: var(--success-text) !important;
+}
+
+/* Error States */
+.error,
+.error-badge,
+.status-error,
+.status-failed {
+  background-color: var(--error-bg) !important;
+  color: var(--error-text) !important;
+}
+
+/* React Flow Nodes */
+.react-flow__node {
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+.react-flow__node-default {
+  background-color: var(--card-bg) !important;
+  border-color: var(--border-color) !important;
+}
+
+.custom-node {
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+.node-name,
+.node-url {
+  color: var(--text-primary) !important;
+}
+
+/* React Flow Controls */
+.react-flow__controls {
+  background-color: var(--card-bg) !important;
+  border-color: var(--border-color) !important;
+}
+
+.react-flow__controls-button {
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+.react-flow__controls-button:hover {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* React Flow Minimap */
+.react-flow__minimap {
+  background-color: var(--card-bg) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Specific Component Overrides */
+.checkbox-label {
+  color: var(--text-primary) !important;
+}
+
+.api-result-title,
+.api-name,
+.history-name {
+  color: var(--text-primary) !important;
+}
+
+.detail-label {
+  color: var(--text-primary) !important;
+}
+
+.detail-value {
+  background-color: var(--input-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Empty States */
+.empty-state,
+.no-data,
+.no-mappings {
+  color: var(--text-secondary) !important;
+}
+
+/* Loading States */
+.loading {
+  color: var(--text-secondary) !important;
+}
+
+/* Tooltips */
+.tooltip {
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+/* Dropdowns */
+.dropdown,
+.dropdown-menu {
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-color) !important;
+}
+
+.dropdown-item:hover {
+  background-color: var(--bg-tertiary) !important;
+}
+
+/* Tabs */
+.tab,
+.tab-button {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-secondary) !important;
+  border-color: var(--border-color) !important;
+}
+
+.tab.active,
+.tab-button.active {
+  background-color: var(--card-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  background-color: var(--bg-secondary);
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--border-color);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-tertiary);
+}
+
+/* Transitions for smooth theme switching - Only for themed elements */
+.control-bar,
+.api-group-card,
+.api-card,
+.execution-card,
+.result-card,
+.modal-content,
+.panel,
+.section,
+.container,
+.box,
+input,
+textarea,
+select,
+button,
+.btn,
+.react-flow__node,
+.card {
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+/* Made with Bob */
