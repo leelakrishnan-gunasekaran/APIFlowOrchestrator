@@ -4,7 +4,6 @@ import com.apiflow.model.ApiGroup;
 import com.apiflow.model.ApiNode;
 import com.apiflow.model.ApiGroupExecutionRun;
 import com.apiflow.model.ApiNodeExecutionResult;
-import com.apiflow.model.ApiRequestHistory;
 import com.apiflow.repository.ApiGroupRepository;
 import com.apiflow.repository.ApiNodeRepository;
 import com.apiflow.repository.ApiGroupExecutionRunRepository;
@@ -70,11 +69,22 @@ public class BatchExecutionService {
         boolean allSuccess = true;
         String overallStatus = "SUCCESS";
         
-        for (ApiNode node : nodes) {
+        for (int i = 0; i < nodes.size(); i++) {
+            ApiNode node = nodes.get(i);
             try {
-                log.info("Executing node: {} - {}", node.getName(), node.getUrl());
+                log.info("========================================");
+                log.info("Executing node {}/{}: {} - {}", (i + 1), nodes.size(), node.getName(), node.getUrl());
+                log.info("Current variables before execution: {}", variables);
+                log.info("========================================");
                 
+                // Execute node synchronously - this blocks until completion
                 Map<String, Object> nodeResult = executeNode(node, variables);
+                
+                log.info("========================================");
+                log.info("Node {}/{} completed: {}", (i + 1), nodes.size(), node.getName());
+                log.info("Variables after execution: {}", variables);
+                log.info("========================================");
+                
                 results.add(nodeResult);
                 
                 // Create execution result record
@@ -103,15 +113,20 @@ public class BatchExecutionService {
             } catch (Exception e) {
                 log.error("Error executing node: {} - {}", node.getName(), e.getMessage(), e);
                 allSuccess = false;
-                overallStatus = "FAILED";
+                // Only mark as FAILED if this is the first failure, otherwise keep PARTIAL_SUCCESS
+                if ("SUCCESS".equals(overallStatus)) {
+                    overallStatus = "PARTIAL_SUCCESS";
+                }
                 
                 Map<String, Object> errorResult = new HashMap<>();
                 errorResult.put("nodeId", node.getId());
                 errorResult.put("nodeName", node.getName());
+                errorResult.put("method", node.getMethod());
+                errorResult.put("url", node.getUrl());
                 errorResult.put("status", "FAILED");
                 errorResult.put("error", e.getMessage());
                 errorResult.put("errorType", e.getClass().getSimpleName());
-                errorResult.put("stackTrace", getStackTraceAsString(e));
+                errorResult.put("timestamp", LocalDateTime.now().toString());
                 results.add(errorResult);
                 
                 // Create error execution result record
@@ -127,8 +142,7 @@ public class BatchExecutionService {
                 
                 executionRun.getApiRunResults().add(executionResult);
                 
-                // Stop execution on error
-                break;
+                // Continue execution - do not break
             }
         }
         
@@ -151,9 +165,12 @@ public class BatchExecutionService {
         return response;
     }
     
-    private Map<String, Object> executeNode(ApiNode node, Map<String, Object> variables) throws Exception {
+    private synchronized Map<String, Object> executeNode(ApiNode node, Map<String, Object> variables) throws Exception {
+        log.info("Starting executeNode for: {}", node.getName());
+        
         // Replace variables in URL
         String url = replaceVariables(node.getUrl(), variables);
+        log.info("URL after variable replacement: {}", url);
         
         // Replace variables in headers
         Map<String, String> headers = new HashMap<>();
@@ -173,6 +190,7 @@ public class BatchExecutionService {
         String requestBody = null;
         if (node.getRequestBody() != null && !node.getRequestBody().isEmpty()) {
             requestBody = replaceVariables(node.getRequestBody(), variables);
+            log.info("Request body after variable replacement: {}", requestBody);
         }
         
         // Execute HTTP request
@@ -209,9 +227,13 @@ public class BatchExecutionService {
         log.info("Response status: {}", response.getStatusCode());
         log.info("Response body: {}", response.getBody());
         
-        // Extract variables from response
+        // Extract variables from response - this must complete before returning
         if (node.getFieldMappings() != null && !node.getFieldMappings().isEmpty()) {
+            log.info("Extracting variables from response using field mappings: {}", node.getFieldMappings());
             extractVariablesFromResponse(response.getBody(), node.getFieldMappings(), variables);
+            log.info("Variables after extraction: {}", variables);
+        } else {
+            log.info("No field mappings defined for this node");
         }
         
         // Build result
@@ -249,20 +271,25 @@ public class BatchExecutionService {
         return result;
     }
     
-    private void extractVariablesFromResponse(String responseBody, Map<String, String> fieldMappings, Map<String, Object> variables) {
+    private synchronized void extractVariablesFromResponse(String responseBody, Map<String, String> fieldMappings, Map<String, Object> variables) {
         try {
+            log.info("Starting variable extraction from response body");
             JsonNode jsonNode = objectMapper.readTree(responseBody);
             
             for (Map.Entry<String, String> mapping : fieldMappings.entrySet()) {
                 String varName = mapping.getKey();
                 String jsonPath = mapping.getValue();
                 
+                log.info("Attempting to extract variable '{}' from path '{}'", varName, jsonPath);
                 Object value = extractValueFromJsonPath(jsonNode, jsonPath);
                 if (value != null) {
                     variables.put(varName, value);
-                    log.info("Extracted variable: {} = {}", varName, value);
+                    log.info("Successfully extracted and stored variable: {} = {}", varName, value);
+                } else {
+                    log.warn("Could not extract value for variable '{}' from path '{}'", varName, jsonPath);
                 }
             }
+            log.info("Variable extraction completed. Current variables: {}", variables);
         } catch (Exception e) {
             log.error("Error extracting variables from response", e);
         }

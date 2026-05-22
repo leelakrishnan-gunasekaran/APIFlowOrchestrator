@@ -225,6 +225,40 @@ public class CollectionService {
         log.info("Deleting API Request: {}", requestId);
         apiRequestRepository.deleteById(requestId);
     }
+    
+    @Transactional
+    public ApiRequest moveRequest(Long requestId, Long targetCollectionId, Long targetFolderId) {
+        log.info("Moving API Request: {} to Collection: {}, Folder: {}", requestId, targetCollectionId, targetFolderId);
+        
+        ApiRequest request = apiRequestRepository.findById(requestId)
+                .orElseThrow(() -> new RuntimeException("API Request not found: " + requestId));
+        
+        Collections targetCollection = collectionRepository.findById(targetCollectionId)
+                .orElseThrow(() -> new RuntimeException("Target collection not found: " + targetCollectionId));
+        
+        // Update collection
+        request.setCollection(targetCollection);
+        
+        // Update folder (can be null for collection root)
+        if (targetFolderId != null) {
+            Folder targetFolder = folderRepository.findById(targetFolderId)
+                    .orElseThrow(() -> new RuntimeException("Target folder not found: " + targetFolderId));
+            request.setFolder(targetFolder);
+        } else {
+            request.setFolder(null);
+        }
+        
+        // Update sequence order
+        List<ApiRequest> existingRequests;
+        if (targetFolderId != null) {
+            existingRequests = apiRequestRepository.findByFolderIdOrderBySequenceOrder(targetFolderId);
+        } else {
+            existingRequests = apiRequestRepository.findByCollectionIdAndFolderIsNullOrderBySequenceOrder(targetCollectionId);
+        }
+        request.setSequenceOrder(existingRequests.size() + 1);
+        
+        return apiRequestRepository.save(request);
+    }
 }
 
 // Made with Bob

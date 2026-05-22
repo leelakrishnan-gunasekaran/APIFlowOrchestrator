@@ -286,6 +286,18 @@
   white-space: nowrap;
 }
 
+.request-actions {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.request-header:hover .request-actions {
+  opacity: 1;
+}
+
 .history-toggle-btn {
   padding: 2px 6px;
   background: transparent;

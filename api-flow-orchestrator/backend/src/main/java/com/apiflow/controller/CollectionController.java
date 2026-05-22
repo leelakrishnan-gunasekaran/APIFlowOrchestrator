@@ -142,6 +142,19 @@ public class CollectionController {
         collectionService.deleteRequest(requestId);
         return ResponseEntity.noContent().build();
     }
+    
+    @PutMapping("/requests/{requestId}/move")
+    public ResponseEntity<ApiRequest> moveRequest(
+            @PathVariable Long requestId,
+            @RequestParam Long targetCollectionId,
+            @RequestParam(required = false) Long targetFolderId) {
+        try {
+            ApiRequest moved = collectionService.moveRequest(requestId, targetCollectionId, targetFolderId);
+            return ResponseEntity.ok(moved);
+        } catch (RuntimeException e) {
+            return ResponseEntity.notFound().build();
+        }
+    }
 }
 
 // Made with Bob

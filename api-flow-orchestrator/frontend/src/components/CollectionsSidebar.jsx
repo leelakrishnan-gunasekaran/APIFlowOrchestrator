@@ -242,7 +242,7 @@ const CollectionsSidebar = ({ onSelectRequest, selectedRequestId }) => {
 
     return (
       <div key={request.id} className="request-item" style={{ paddingLeft: `${level * 16}px` }}>
-        <div 
+        <div
           className={`request-header ${isSelected ? 'selected' : ''}`}
           onClick={() => onSelectRequest(request)}
           onContextMenu={(e) => handleContextMenu(e, 'request', request)}
@@ -251,18 +251,32 @@ const CollectionsSidebar = ({ onSelectRequest, selectedRequestId }) => {
             {request.method}
           </span>
           <span className="request-name">{request.name}</span>
-          {hasHistory && (
+          <div className="request-actions">
+            {hasHistory && (
+              <button
+                className="history-toggle-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleHistory(request.id);
+                }}
+                title="View History"
+              >
+                {isExpanded ? '▼' : '▶'} ({request.history.length})
+              </button>
+            )}
             <button
-              className="history-toggle-btn"
+              className="delete-btn"
               onClick={(e) => {
                 e.stopPropagation();
-                toggleHistory(request.id);
+                if (confirm(`Delete request "${request.name}"?`)) {
+                  deleteRequestMutation.mutate(request.id);
+                }
               }}
-              title="View History"
+              title="Delete Request"
             >
-              {isExpanded ? '▼' : '▶'} ({request.history.length})
+              −
             </button>
-          )}
+          </div>
         </div>
         
         {isExpanded && hasHistory && (
