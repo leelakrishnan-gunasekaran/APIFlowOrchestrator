@@ -73,7 +73,7 @@ public class BatchExecutionService {
             ApiNode node = nodes.get(i);
             try {
                 log.info("========================================");
-                log.info("Executing node {}/{}: {} - {}", (i + 1), nodes.size(), node.getName(), node.getUrl());
+                log.info("Executing node {}/{}: {}", (i + 1), nodes.size(), node.getName());
                 log.info("Current variables before execution: {}", variables);
                 log.info("========================================");
                 
@@ -93,8 +93,8 @@ public class BatchExecutionService {
                 executionResult.setApiNodeId(node.getId());
                 executionResult.setNodeName(node.getName());
                 executionResult.setMethod(node.getMethod());
-                executionResult.setUrl((String) nodeResult.get("url"));
-                executionResult.setRequestBody(node.getRequestBody());
+                executionResult.setUrl((String) nodeResult.get("url"));  // Resolved URL with actual values
+                executionResult.setRequestBody((String) nodeResult.get("requestBody"));  // Resolved request body with actual values
                 executionResult.setStatus((String) nodeResult.get("status"));
                 executionResult.setStatusCode((Integer) nodeResult.get("statusCode"));
                 executionResult.setResponse((String) nodeResult.get("response"));
@@ -122,7 +122,8 @@ public class BatchExecutionService {
                 errorResult.put("nodeId", node.getId());
                 errorResult.put("nodeName", node.getName());
                 errorResult.put("method", node.getMethod());
-                errorResult.put("url", node.getUrl());
+                errorResult.put("url", node.getUrl());  // Template URL (error occurred before resolution)
+                errorResult.put("requestBody", node.getRequestBody());  // Template request body
                 errorResult.put("status", "FAILED");
                 errorResult.put("error", e.getMessage());
                 errorResult.put("errorType", e.getClass().getSimpleName());
@@ -135,7 +136,8 @@ public class BatchExecutionService {
                 executionResult.setApiNodeId(node.getId());
                 executionResult.setNodeName(node.getName());
                 executionResult.setMethod(node.getMethod());
-                executionResult.setUrl(node.getUrl());
+                executionResult.setUrl(node.getUrl());  // Template URL (error occurred before resolution)
+                executionResult.setRequestBody(node.getRequestBody());  // Template request body
                 executionResult.setStatus("FAILED");
                 executionResult.setError(e.getMessage());
                 executionResult.setExecutedAt(LocalDateTime.now());
@@ -170,7 +172,8 @@ public class BatchExecutionService {
         
         // Replace variables in URL
         String url = replaceVariables(node.getUrl(), variables);
-        log.info("URL after variable replacement: {}", url);
+        log.info("Template URL: {}", node.getUrl());
+        log.info("Resolved URL: {}", url);
         
         // Replace variables in headers
         Map<String, String> headers = new HashMap<>();
@@ -207,9 +210,13 @@ public class BatchExecutionService {
         HttpEntity<String> entity = new HttpEntity<>(requestBody, httpHeaders);
         HttpMethod method = HttpMethod.valueOf(node.getMethod().toUpperCase());
         
-        log.info("Executing HTTP request: {} {}", method, url);
+        log.info("========================================");
+        log.info("HTTP Request Details:");
+        log.info("Method: {}", method);
+        log.info("URL: {}", url);
         log.info("Request headers: {}", headers);
         log.info("Request body: {}", requestBody);
+        log.info("========================================");
         
         long startTime = System.currentTimeMillis();
         RestTemplate restTemplate = getRestTemplate();
@@ -241,7 +248,8 @@ public class BatchExecutionService {
         result.put("nodeId", node.getId());
         result.put("nodeName", node.getName());
         result.put("method", node.getMethod());
-        result.put("url", url);
+        result.put("url", url);  // This is the resolved URL with actual values
+        result.put("requestBody", requestBody);  // This is the resolved request body with actual values
         result.put("status", "SUCCESS");
         result.put("statusCode", response.getStatusCode().value());
         result.put("response", response.getBody());

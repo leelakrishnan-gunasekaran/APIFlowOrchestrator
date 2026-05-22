@@ -186,7 +186,8 @@
 .visual-node-editor {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  min-height: 600px;
+  height: calc(100vh - 400px);
   background: #f9fafb;
 }
 

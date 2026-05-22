@@ -1,0 +1,6 @@
+TEST_CASE,PRODUCT_ID,USER_NAME,ASSERT_STATUS_CODE,ASSERT_MESSAGE
+TC001,123,john_doe,200,Product deleted successfully
+TC002,456,jane_smith,200,Product deleted successfully
+TC003,789,bob_wilson,200,Product deleted successfully
+TC004,999,admin,404,Product not found
+TC005,000,test_user,400,Invalid product ID

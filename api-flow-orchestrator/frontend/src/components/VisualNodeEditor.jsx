@@ -10,7 +10,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { Plus, Play, Save, Settings, Trash2, Upload, X, ArrowUp, ArrowDown } from 'lucide-react';
-import BatchExecutor from './BatchExecutor';
+import BulkTestingWorkflow from './BulkTestingWorkflow';
 import './VisualNodeEditor.css';
 
 const VisualNodeEditor = ({ groupId, nodes: apiNodes = [], onExecute, onSave, latestRun }) => {
@@ -340,7 +340,7 @@ const VisualNodeEditor = ({ groupId, nodes: apiNodes = [], onExecute, onSave, la
           </button>
           <button className="toolbar-btn" onClick={() => setShowBatchExecutor(true)}>
             <Upload size={18} />
-            Batch Execute
+            Bulk Testing
           </button>
           <button className="toolbar-btn primary" onClick={handleExecuteFlow}>
             <Play size={18} />
@@ -584,9 +584,9 @@ const VisualNodeEditor = ({ groupId, nodes: apiNodes = [], onExecute, onSave, la
         </div>
       )}
 
-      {/* Batch Executor Modal */}
+      {/* Bulk Testing Workflow Modal */}
       {showBatchExecutor && (
-        <BatchExecutor
+        <BulkTestingWorkflow
           groupId={groupId}
           onClose={() => setShowBatchExecutor(false)}
         />

@@ -34,6 +34,10 @@ public class ApiGroup {
     @JsonManagedReference("apigroup-variables")
     private List<HookVariable> hookVariables = new ArrayList<>();
     
+    @OneToMany(mappedBy = "apiGroup", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonManagedReference("apigroup-columnvariables")
+    private List<ColumnVariable> columnVariables = new ArrayList<>();
+    
     @OneToOne(mappedBy = "apiGroup", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonManagedReference("apigroup-authprofile")
     private AuthProfile authProfile;

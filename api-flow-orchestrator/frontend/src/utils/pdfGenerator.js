@@ -159,9 +159,9 @@ export const generateExecutionReportPDF = (groupName, nodes, latestRun) => {
           doc.setFontSize(7);
           doc.setFont('helvetica', 'normal');
           doc.setTextColor(31, 41, 55);
-          const apiName = (result.apiNodeName || 'Unknown').length > 15 
-            ? (result.apiNodeName || 'Unknown').substring(0, 15) + '...' 
-            : (result.apiNodeName || 'Unknown');
+          const apiName = (result.nodeName || 'Unknown').length > 15
+            ? (result.nodeName || 'Unknown').substring(0, 15) + '...'
+            : (result.nodeName || 'Unknown');
           doc.text(apiName, 20, barY + barHeight - 1);
           
           // Duration label
@@ -216,7 +216,7 @@ export const generateExecutionReportPDF = (groupName, nodes, latestRun) => {
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(255, 255, 255);
-        doc.text(`${index + 1}. ${result.apiNodeName || node.name}`, 25, yPosition + 2);
+        doc.text(`${index + 1}. ${result.nodeName || node.name}`, 25, yPosition + 2);
         yPosition += 12;
         
         // API Details Box
@@ -416,7 +416,7 @@ export const generateSimpleReport = (groupName, nodes, latestRun) => {
       latestRun.apiRunResults.forEach((result, index) => {
         const node = nodes.find(n => n.id === result.apiNodeId);
         if (node) {
-          report += `${index + 1}. ${result.apiNodeName || node.name}\n`;
+          report += `${index + 1}. ${result.nodeName || node.name}\n`;
           report += `   Method: ${node.method}\n`;
           report += `   URL: ${node.url}\n`;
           report += `   Duration: ${result.durationMs} ms\n`;
@@ -441,6 +441,266 @@ export const generateSimpleReport = (groupName, nodes, latestRun) => {
   URL.revokeObjectURL(url);
   
   return { success: true, fileName: a.download };
+};
+
+// Generate PDF report for bulk test execution results
+export const generateBulkTestReportPDF = (results) => {
+  try {
+    console.log('Generating Bulk Test PDF Report:', results);
+    
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    let yPosition = 20;
+    
+    // Title
+    doc.setFontSize(22);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(31, 41, 55);
+    doc.text('Bulk Test Execution Report', pageWidth / 2, yPosition, { align: 'center' });
+    yPosition += 12;
+    
+    // Run Info
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(59, 130, 246);
+    doc.text(`Run ID: ${results.id}`, pageWidth / 2, yPosition, { align: 'center' });
+    yPosition += 6;
+    doc.text(`File: ${results.fileName}`, pageWidth / 2, yPosition, { align: 'center' });
+    yPosition += 8;
+    
+    // Execution Date
+    doc.setFontSize(10);
+    doc.setTextColor(107, 114, 128);
+    doc.text(`Started: ${new Date(results.startedAt).toLocaleString()}`, pageWidth / 2, yPosition, { align: 'center' });
+    if (results.completedAt) {
+      yPosition += 5;
+      doc.text(`Completed: ${new Date(results.completedAt).toLocaleString()}`, pageWidth / 2, yPosition, { align: 'center' });
+    }
+    yPosition += 15;
+    
+    // Draw separator line
+    doc.setDrawColor(229, 231, 235);
+    doc.setLineWidth(0.5);
+    doc.line(20, yPosition, pageWidth - 20, yPosition);
+    yPosition += 10;
+    
+    // Summary Statistics
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(31, 41, 55);
+    doc.text('Summary Statistics', 20, yPosition);
+    yPosition += 10;
+    
+    const boxWidth = (pageWidth - 60) / 4;
+    const boxHeight = 25;
+    const boxY = yPosition;
+    
+    // Total Tests Box
+    doc.setFillColor(139, 92, 246);
+    doc.rect(20, boxY, boxWidth, boxHeight, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${results.totalTests}`, 20 + boxWidth / 2, boxY + 12, { align: 'center' });
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Total Tests', 20 + boxWidth / 2, boxY + 19, { align: 'center' });
+    
+    // Passed Tests Box
+    doc.setFillColor(16, 185, 129);
+    doc.rect(25 + boxWidth, boxY, boxWidth, boxHeight, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${results.passedTests}`, 25 + boxWidth + boxWidth / 2, boxY + 12, { align: 'center' });
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Passed', 25 + boxWidth + boxWidth / 2, boxY + 19, { align: 'center' });
+    
+    // Failed Tests Box
+    doc.setFillColor(239, 68, 68);
+    doc.rect(30 + boxWidth * 2, boxY, boxWidth, boxHeight, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${results.failedTests}`, 30 + boxWidth * 2 + boxWidth / 2, boxY + 12, { align: 'center' });
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Failed', 30 + boxWidth * 2 + boxWidth / 2, boxY + 19, { align: 'center' });
+    
+    // Pass Rate Box
+    const passRate = results.totalTests > 0 ? ((results.passedTests / results.totalTests) * 100).toFixed(1) : 0;
+    doc.setFillColor(59, 130, 246);
+    doc.rect(35 + boxWidth * 3, boxY, boxWidth, boxHeight, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${passRate}%`, 35 + boxWidth * 3 + boxWidth / 2, boxY + 12, { align: 'center' });
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Pass Rate', 35 + boxWidth * 3 + boxWidth / 2, boxY + 19, { align: 'center' });
+    
+    yPosition += boxHeight + 15;
+    
+    // Duration
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(107, 114, 128);
+    doc.text(`Total Duration: ${(results.totalDuration / 1000).toFixed(2)} seconds`, 20, yPosition);
+    yPosition += 15;
+    
+    // Test Results Section
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(31, 41, 55);
+    doc.text('Test Case Results', 20, yPosition);
+    yPosition += 10;
+    
+    // Test Results Table
+    if (results.testCaseResults && results.testCaseResults.length > 0) {
+      const tableData = results.testCaseResults.map((test, index) => [
+        `${index + 1}`,
+        test.testCaseId || 'N/A',
+        test.status,
+        `${test.duration || 0} ms`,
+        test.assertionsPassed || 0,
+        test.assertionsFailed || 0
+      ]);
+      
+      doc.autoTable({
+        startY: yPosition,
+        head: [['#', 'Test Case ID', 'Status', 'Duration', 'Passed', 'Failed']],
+        body: tableData,
+        theme: 'striped',
+        headStyles: {
+          fillColor: [59, 130, 246],
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+          fontSize: 10
+        },
+        bodyStyles: {
+          fontSize: 9
+        },
+        columnStyles: {
+          0: { cellWidth: 10 },
+          1: { cellWidth: 50 },
+          2: { cellWidth: 25 },
+          3: { cellWidth: 30 },
+          4: { cellWidth: 20 },
+          5: { cellWidth: 20 }
+        },
+        didParseCell: function(data) {
+          if (data.column.index === 2 && data.section === 'body') {
+            if (data.cell.raw === 'PASSED') {
+              data.cell.styles.textColor = [16, 185, 129];
+              data.cell.styles.fontStyle = 'bold';
+            } else if (data.cell.raw === 'FAILED') {
+              data.cell.styles.textColor = [239, 68, 68];
+              data.cell.styles.fontStyle = 'bold';
+            }
+          }
+        },
+        margin: { left: 20, right: 20 }
+      });
+      
+      yPosition = doc.lastAutoTable.finalY + 15;
+      
+      // Detailed Results for Failed Tests
+      const failedTests = results.testCaseResults.filter(t => t.status === 'FAILED');
+      if (failedTests.length > 0) {
+        if (yPosition > pageHeight - 40) {
+          doc.addPage();
+          yPosition = 20;
+        }
+        
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(239, 68, 68);
+        doc.text('Failed Test Details', 20, yPosition);
+        yPosition += 10;
+        
+        failedTests.forEach((test, index) => {
+          if (yPosition > pageHeight - 60) {
+            doc.addPage();
+            yPosition = 20;
+          }
+          
+          // Test Header
+          doc.setFillColor(254, 242, 242);
+          doc.rect(20, yPosition - 5, pageWidth - 40, 8, 'F');
+          doc.setFontSize(11);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(239, 68, 68);
+          doc.text(`${index + 1}. ${test.testCaseId}`, 25, yPosition);
+          yPosition += 10;
+          
+          // Error Details
+          if (test.errorMessage) {
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(107, 114, 128);
+            const errorLines = doc.splitTextToSize(`Error: ${test.errorMessage}`, pageWidth - 60);
+            errorLines.forEach(line => {
+              if (yPosition > pageHeight - 20) {
+                doc.addPage();
+                yPosition = 20;
+              }
+              doc.text(line, 30, yPosition);
+              yPosition += 5;
+            });
+          }
+          
+          // Failed Assertions
+          if (test.assertionResults && test.assertionResults.length > 0) {
+            const failedAssertions = test.assertionResults.filter(a => !a.passed);
+            if (failedAssertions.length > 0) {
+              yPosition += 3;
+              doc.setFont('helvetica', 'bold');
+              doc.text('Failed Assertions:', 30, yPosition);
+              yPosition += 5;
+              doc.setFont('helvetica', 'normal');
+              
+              failedAssertions.forEach(assertion => {
+                if (yPosition > pageHeight - 20) {
+                  doc.addPage();
+                  yPosition = 20;
+                }
+                doc.text(`• ${assertion.field}: Expected "${assertion.expectedValue}", Got "${assertion.actualValue}"`, 35, yPosition);
+                yPosition += 5;
+              });
+            }
+          }
+          
+          yPosition += 8;
+        });
+      }
+    }
+    
+    // Footer on each page
+    const totalPages = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(107, 114, 128);
+      doc.text(
+        `Page ${i} of ${totalPages} | Generated by API Flow Orchestrator`,
+        pageWidth / 2,
+        pageHeight - 10,
+        { align: 'center' }
+      );
+    }
+    
+    // Save the PDF
+    const fileName = `bulk_test_report_${results.id}_${Date.now()}.pdf`;
+    doc.save(fileName);
+    
+    return { success: true, fileName };
+  } catch (error) {
+    console.error('Error generating bulk test PDF:', error);
+    return { success: false, error: error.message };
+  }
 };
 
 // Made with Bob

@@ -66,6 +66,14 @@ export const executionService = {
   getRunById: (runId) => api.get(`/execution/run/${runId}`),
 };
 
+// Column Variables (Excel column mappings)
+export const columnVariableService = {
+  getByGroupId: (groupId) => api.get(`/groups/${groupId}/column-variables`),
+  create: (groupId, data) => api.post(`/groups/${groupId}/column-variables`, data),
+  update: (groupId, variableId, data) => api.put(`/groups/${groupId}/column-variables/${variableId}`, data),
+  delete: (groupId, variableId) => api.delete(`/groups/${groupId}/column-variables/${variableId}`),
+};
+
 export default api;
 
 // Made with Bob

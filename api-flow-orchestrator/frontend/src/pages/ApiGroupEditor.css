@@ -105,12 +105,79 @@
 }
 
 /* Variables Section Styles */
+/* Tab Navigation */
+.tab-navigation {
+  display: flex;
+  gap: 8px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  margin: 20px 0;
+  padding: 8px;
+}
+
+.tab-button {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: #6b7280;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tab-button:hover {
+  background: #f9fafb;
+  color: #374151;
+}
+
+.tab-button.active {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  border-color: #3b82f6;
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3);
+}
+
+.tab-button.active:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+}
+
 .variables-section {
   background: white;
   border-radius: 8px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   margin: 20px 0;
   overflow: hidden;
+}
+
+/* Extracted Variables - Green theme */
+.variables-section.extracted-variables {
+  border-left: 4px solid #10b981;
+}
+
+.variables-section.extracted-variables .variables-toggle {
+  background: linear-gradient(to right, #ecfdf5 0%, white 100%);
+}
+
+/* Add Variables - Purple theme */
+.variables-section.add-variables-section {
+  border-left: 4px solid #7c3aed;
+}
+
+.variables-section.add-variables-section .variables-toggle {
+  background: linear-gradient(to right, #faf5ff 0%, white 100%);
+}
+
+.add-variables-toggle span {
+  color: #6b21a8;
+  font-weight: 600;
 }
 
 .variables-toggle {
@@ -231,7 +298,7 @@
 .api-group-editor-page {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  min-height: 100vh;
   background: #f9fafb;
 }
 

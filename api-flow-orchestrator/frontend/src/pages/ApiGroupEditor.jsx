@@ -1,9 +1,10 @@
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
-import { apiGroupService, apiNodeService, executionService } from '../services/api';
+import { ArrowLeft, ChevronDown, ChevronUp, Link2, Upload } from 'lucide-react';
+import { apiGroupService, apiNodeService, executionService, columnVariableService } from '../services/api';
 import VisualNodeEditor from '../components/VisualNodeEditor';
-import ExecutionResults from '../components/ExecutionResults';
+import BulkTestingWorkflow from '../components/BulkTestingWorkflow';
+import AddVariables from '../components/AddVariables';
 import { generateExecutionReportPDF, generateSimpleReport } from '../utils/pdfGenerator';
 import './ApiGroupEditor.css';
 import { useState, useEffect } from 'react';
@@ -13,7 +14,9 @@ function ApiGroupEditor() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [showVariables, setShowVariables] = useState(false);
+  const [showAddVariables, setShowAddVariables] = useState(false);
   const [generateApiResponse, setGenerateApiResponse] = useState(false);
+  const [activeTab, setActiveTab] = useState('chaining'); // 'chaining' or 'bulk'
 
   const { data: group, isLoading } = useQuery({
     queryKey: ['apiGroup', id],
@@ -36,6 +39,14 @@ function ApiGroupEditor() {
     queryFn: async () => {
       const response = await executionService.getRecentRuns(id);
       return response.data && response.data.length > 0 ? response.data[0] : null;
+    },
+  });
+
+  const { data: columnVariables = [], refetch: refetchColumnVariables } = useQuery({
+    queryKey: ['columnVariables', id],
+    queryFn: async () => {
+      const response = await columnVariableService.getByGroupId(id);
+      return response.data;
     },
   });
 
@@ -139,6 +150,40 @@ function ApiGroupEditor() {
   const handleExecute = (groupId) => {
     if (window.confirm('Execute this API flow?')) {
       executeMutation.mutate(groupId);
+    }
+  };
+
+  // Column Variables handlers
+  const handleAddColumnVariable = async (data) => {
+    try {
+      await columnVariableService.create(id, data);
+      refetchColumnVariables();
+      alert('Variable added successfully!');
+    } catch (error) {
+      console.error('Error adding variable:', error);
+      throw error;
+    }
+  };
+
+  const handleUpdateColumnVariable = async (variableId, data) => {
+    try {
+      await columnVariableService.update(id, variableId, data);
+      refetchColumnVariables();
+      alert('Variable updated successfully!');
+    } catch (error) {
+      console.error('Error updating variable:', error);
+      throw error;
+    }
+  };
+
+  const handleDeleteColumnVariable = async (variableId) => {
+    try {
+      await columnVariableService.delete(id, variableId);
+      refetchColumnVariables();
+      alert('Variable deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting variable:', error);
+      throw error;
     }
   };
 
@@ -255,8 +300,8 @@ function ApiGroupEditor() {
         </div>
       </div>
 
-      {/* Variables Section */}
-      <div className="variables-section">
+      {/* Extracted Variables Section */}
+      <div className="variables-section extracted-variables">
         <button
           className="variables-toggle"
           onClick={() => setShowVariables(!showVariables)}
@@ -312,18 +357,63 @@ function ApiGroupEditor() {
           </div>
         )}
       </div>
+
+      {/* Add Variables Section */}
+      <div className="variables-section add-variables-section">
+        <button
+          className="variables-toggle add-variables-toggle"
+          onClick={() => setShowAddVariables(!showAddVariables)}
+        >
+          <span>Add Variables ({columnVariables.length})</span>
+          {showAddVariables ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+        </button>
+        
+        {showAddVariables && (
+          <div className="variables-content">
+            <AddVariables
+              variables={columnVariables}
+              onAdd={handleAddColumnVariable}
+              onUpdate={handleUpdateColumnVariable}
+              onDelete={handleDeleteColumnVariable}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="tab-navigation">
+        <button
+          className={`tab-button ${activeTab === 'chaining' ? 'active' : ''}`}
+          onClick={() => setActiveTab('chaining')}
+        >
+          <Link2 size={18} />
+          API Chaining
+        </button>
+        <button
+          className={`tab-button ${activeTab === 'bulk' ? 'active' : ''}`}
+          onClick={() => setActiveTab('bulk')}
+        >
+          <Upload size={18} />
+          Bulk Executor
+        </button>
+      </div>
       
       <div className="editor-container">
-        <VisualNodeEditor
-          groupId={id}
-          nodes={nodes}
-          onSave={handleSaveNode}
-          onExecute={handleExecute}
-          latestRun={latestRun}
-          generateApiResponse={generateApiResponse}
-        />
-        
-        <ExecutionResults groupId={id} />
+        {activeTab === 'chaining' ? (
+          <VisualNodeEditor
+            groupId={id}
+            nodes={nodes}
+            onSave={handleSaveNode}
+            onExecute={handleExecute}
+            latestRun={latestRun}
+            generateApiResponse={generateApiResponse}
+          />
+        ) : (
+          <BulkTestingWorkflow
+            groupId={id}
+            onClose={() => setActiveTab('chaining')}
+          />
+        )}
       </div>
     </div>
   );
