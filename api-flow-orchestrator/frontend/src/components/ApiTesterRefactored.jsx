@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import axios from 'axios';
+import { apiGroupService, apiNodeService } from '../services/api';
 import CollectionsSidebar from './CollectionsSidebar';
+import JsonViewer from './JsonViewer';
+import JsonEditor from './JsonEditor';
 import './ApiTesterRefactored.css';
 
 const ApiTesterRefactored = () => {
+  const queryClient = useQueryClient();
   const [method, setMethod] = useState('GET');
   const [url, setUrl] = useState('');
   const [authType, setAuthType] = useState('none');
@@ -25,6 +29,39 @@ const ApiTesterRefactored = () => {
   const [extractedVariables, setExtractedVariables] = useState({});
   const [currentRequest, setCurrentRequest] = useState(null);
   const [currentHistoryItem, setCurrentHistoryItem] = useState(null);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [showSaveToCollectionModal, setShowSaveToCollectionModal] = useState(false);
+  const [saveConfig, setSaveConfig] = useState({
+    apiName: '',
+    selectedGroupId: '',
+    newGroupName: '',
+    createNewGroup: false
+  });
+  const [collectionSaveConfig, setCollectionSaveConfig] = useState({
+    requestName: '',
+    selectedCollectionId: '',
+    selectedFolderId: '',
+    newCollectionName: '',
+    createNewCollection: false
+  });
+
+  // Fetch all groups for the save modal
+  const { data: groups = [] } = useQuery({
+    queryKey: ['apiGroups'],
+    queryFn: async () => {
+      const response = await apiGroupService.getAll();
+      return response.data;
+    }
+  });
+
+  // Fetch all collections for the save to collection modal
+  const { data: collections = [] } = useQuery({
+    queryKey: ['collections'],
+    queryFn: async () => {
+      const response = await axios.get('/api/collections');
+      return response.data;
+    }
+  });
 
   const sendRequestMutation = useMutation({
     mutationFn: async (requestData) => {
@@ -259,6 +296,186 @@ const ApiTesterRefactored = () => {
     });
   };
 
+  const handleSave = () => {
+    if (!url) {
+      alert('Please configure an API request before saving');
+      return;
+    }
+    setShowSaveModal(true);
+  };
+
+  const handleSaveToCollection = () => {
+    if (!url) {
+      alert('Please configure an API request before saving');
+      return;
+    }
+    setShowSaveToCollectionModal(true);
+  };
+
+  const saveApiMutation = useMutation({
+    mutationFn: async () => {
+      try {
+        let groupId = saveConfig.selectedGroupId;
+
+        // Create new group if needed
+        if (saveConfig.createNewGroup) {
+          if (!saveConfig.newGroupName.trim()) {
+            throw new Error('Please enter a group name');
+          }
+          const groupResponse = await apiGroupService.create({
+            name: saveConfig.newGroupName,
+            description: `Created from API Tester`
+          });
+          groupId = groupResponse.data.id;
+        } else if (!groupId) {
+          throw new Error('Please select a group or create a new one');
+        }
+
+        // Prepare headers object
+        const headersObj = {};
+        headers.forEach(header => {
+          if (header.enabled && header.key && header.value) {
+            headersObj[header.key] = header.value;
+          }
+        });
+
+        // Prepare field mappings from variables
+        const fieldMappings = {};
+        variables.forEach(variable => {
+          if (variable.name && variable.jsonPath) {
+            fieldMappings[variable.name] = variable.jsonPath;
+          }
+        });
+
+        // Create API node
+        const nodeData = {
+          name: saveConfig.apiName || `${method} ${url}`,
+          method: method,
+          url: url,
+          headers: JSON.stringify(headersObj),
+          requestBody: body || null,
+          sequenceOrder: null,
+          fieldMappings: fieldMappings
+        };
+
+        const response = await apiNodeService.create(groupId, nodeData);
+        return { groupId, nodeId: response.data.id };
+      } catch (error) {
+        throw error;
+      }
+    },
+    onSuccess: (data) => {
+      alert(`API saved successfully to group!`);
+      setShowSaveModal(false);
+      setSaveConfig({
+        apiName: '',
+        selectedGroupId: '',
+        newGroupName: '',
+        createNewGroup: false
+      });
+    },
+    onError: (error) => {
+      let errorMessage = 'Unknown error occurred';
+      
+      if (error.response) {
+        errorMessage = error.response.data?.message ||
+                      error.response.data?.error ||
+                      `Server error: ${error.response.status}`;
+      } else if (error.request) {
+        errorMessage = 'No response from server. Is the backend running?';
+      } else {
+        errorMessage = error.message;
+      }
+      
+      alert(`Failed to save API: ${errorMessage}`);
+    }
+  });
+
+  const handleSaveSubmit = () => {
+    saveApiMutation.mutate();
+  };
+
+  const saveToCollectionMutation = useMutation({
+    mutationFn: async () => {
+      try {
+        let collectionId = collectionSaveConfig.selectedCollectionId;
+
+        // Create new collection if needed
+        if (collectionSaveConfig.createNewCollection) {
+          if (!collectionSaveConfig.newCollectionName.trim()) {
+            throw new Error('Please enter a collection name');
+          }
+          const collectionResponse = await axios.post('/api/collections', {
+            name: collectionSaveConfig.newCollectionName,
+            description: 'Created from API Tester'
+          });
+          collectionId = collectionResponse.data.id;
+        } else if (!collectionId) {
+          throw new Error('Please select a collection or create a new one');
+        }
+
+        // Prepare headers object
+        const headersObj = {};
+        headers.forEach(header => {
+          if (header.enabled && header.key && header.value) {
+            headersObj[header.key] = header.value;
+          }
+        });
+
+        // Create request in collection
+        const folderId = collectionSaveConfig.selectedFolderId;
+        const url_path = folderId
+          ? `/api/collections/${collectionId}/requests?folderId=${folderId}`
+          : `/api/collections/${collectionId}/requests`;
+        
+        const requestData = {
+          name: collectionSaveConfig.requestName || `${method} ${url}`,
+          method: method,
+          url: url,
+          headers: JSON.stringify(headersObj),
+          requestBody: body || null
+        };
+
+        const response = await axios.post(url_path, requestData);
+        return { collectionId, requestId: response.data.id };
+      } catch (error) {
+        throw error;
+      }
+    },
+    onSuccess: (data) => {
+      alert(`API saved successfully to collection!`);
+      setShowSaveToCollectionModal(false);
+      setCollectionSaveConfig({
+        requestName: '',
+        selectedCollectionId: '',
+        selectedFolderId: '',
+        newCollectionName: '',
+        createNewCollection: false
+      });
+      // Refresh collections
+      queryClient.invalidateQueries(['collections']);
+    },
+    onError: (error) => {
+      let errorMessage = 'Unknown error occurred';
+      
+      if (error.response) {
+        errorMessage = error.response.data?.message ||
+                      error.response.data?.error ||
+                      `Server error: ${error.response.status}`;
+      } else if (error.request) {
+        errorMessage = 'No response from server. Is the backend running?';
+      } else {
+        errorMessage = error.message;
+      }
+      
+      alert(`Failed to save API: ${errorMessage}`);
+    }
+  });
+
+  const handleSaveToCollectionSubmit = () => {
+    saveToCollectionMutation.mutate();
+  };
+
   const handleSelectRequest = (request, historyItem = null) => {
     setCurrentRequest(request);
     setCurrentHistoryItem(historyItem);
@@ -364,6 +581,14 @@ const ApiTesterRefactored = () => {
         <div>
           <h1>API Tester</h1>
           <p>Test your APIs with Postman-style organization</p>
+        </div>
+        <div className="header-actions">
+          <button className="save-api-button" onClick={handleSaveToCollection}>
+            Save API to Collection
+          </button>
+          <button className="save-api-button" onClick={handleSave}>
+            Save API to Group
+          </button>
         </div>
       </div>
 
@@ -574,13 +799,23 @@ const ApiTesterRefactored = () => {
                       Text
                     </label>
                   </div>
-                  <textarea
-                    className="body-textarea"
-                    placeholder={`Enter ${bodyType.toUpperCase()} body`}
-                    value={body}
-                    onChange={(e) => setBody(e.target.value)}
-                    disabled={!['POST', 'PUT', 'PATCH'].includes(method)}
-                  />
+                  {bodyType === 'json' ? (
+                    <JsonEditor
+                      value={body}
+                      onChange={(e) => setBody(e.target.value)}
+                      placeholder="Enter JSON body"
+                      disabled={!['POST', 'PUT', 'PATCH'].includes(method)}
+                      className="body-textarea"
+                    />
+                  ) : (
+                    <textarea
+                      className="body-textarea"
+                      placeholder={`Enter ${bodyType.toUpperCase()} body`}
+                      value={body}
+                      onChange={(e) => setBody(e.target.value)}
+                      disabled={!['POST', 'PUT', 'PATCH'].includes(method)}
+                    />
+                  )}
                   {!['POST', 'PUT', 'PATCH'].includes(method) && (
                     <p className="body-disabled-message">
                       Request body is not supported for {method} requests
@@ -627,12 +862,13 @@ const ApiTesterRefactored = () => {
 
               <div className="response-content">
                 {responseTab === 'body' && (
-                  <pre className="response-body">
-                    {response.success 
-                      ? formatJson(response.data)
-                      : response.error
-                    }
-                  </pre>
+                  response.success ? (
+                    <JsonViewer data={response.data} className="response-body" />
+                  ) : (
+                    <pre className="response-body error">
+                      {response.error}
+                    </pre>
+                  )
                 )}
 
                 {responseTab === 'headers' && response.success && (
@@ -650,6 +886,244 @@ const ApiTesterRefactored = () => {
           )}
         </div>
       </div>
+
+      {/* Save API Modal */}
+      {showSaveModal && (
+        <div className="modal-overlay" onClick={() => setShowSaveModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Save API to Group</h2>
+              <button className="modal-close" onClick={() => setShowSaveModal(false)}>×</button>
+            </div>
+            
+            <div className="modal-body">
+              <div className="form-group">
+                <label>API Name</label>
+                <input
+                  type="text"
+                  placeholder="Enter API name (optional)"
+                  value={saveConfig.apiName}
+                  onChange={(e) => setSaveConfig({...saveConfig, apiName: e.target.value})}
+                />
+                <small>Default: {method} {url}</small>
+              </div>
+
+              <div className="form-group">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={saveConfig.createNewGroup}
+                    onChange={(e) => setSaveConfig({
+                      ...saveConfig,
+                      createNewGroup: e.target.checked,
+                      selectedGroupId: e.target.checked ? '' : saveConfig.selectedGroupId
+                    })}
+                  />
+                  Create New Group
+                </label>
+              </div>
+
+              {saveConfig.createNewGroup ? (
+                <div className="form-group">
+                  <label>New Group Name *</label>
+                  <input
+                    type="text"
+                    placeholder="Enter group name"
+                    value={saveConfig.newGroupName}
+                    onChange={(e) => setSaveConfig({...saveConfig, newGroupName: e.target.value})}
+                  />
+                </div>
+              ) : (
+                <div className="form-group">
+                  <label>Select Group *</label>
+                  <select
+                    value={saveConfig.selectedGroupId}
+                    onChange={(e) => setSaveConfig({...saveConfig, selectedGroupId: e.target.value})}
+                  >
+                    <option value="">-- Select a group --</option>
+                    {groups.map(group => (
+                      <option key={group.id} value={group.id}>
+                        {group.name}
+                      </option>
+                    ))}
+                  </select>
+                  {groups.length === 0 && (
+                    <small className="text-warning">No groups available. Create a new group instead.</small>
+                  )}
+                </div>
+              )}
+
+              <div className="api-preview">
+                <h4>API Configuration Preview</h4>
+                <div className="preview-item">
+                  <strong>Method:</strong> {method}
+                </div>
+                <div className="preview-item">
+                  <strong>URL:</strong> {url}
+                </div>
+                <div className="preview-item">
+                  <strong>Auth:</strong> {authType === 'none' ? 'None' : authType.toUpperCase()}
+                </div>
+                <div className="preview-item">
+                  <strong>Headers:</strong> {headers.filter(h => h.enabled && h.key).length} custom header(s)
+                </div>
+                {body && (
+                  <div className="preview-item">
+                    <strong>Body:</strong> {bodyType.toUpperCase()} ({body.length} characters)
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button
+                className="btn-secondary"
+                onClick={() => setShowSaveModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn-primary"
+                onClick={handleSaveSubmit}
+                disabled={saveApiMutation.isPending}
+              >
+                {saveApiMutation.isPending ? 'Saving...' : 'Save API'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Save API to Collection Modal */}
+      {showSaveToCollectionModal && (
+        <div className="modal-overlay" onClick={() => setShowSaveToCollectionModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Save API to Collection</h2>
+              <button className="modal-close" onClick={() => setShowSaveToCollectionModal(false)}>×</button>
+            </div>
+            
+            <div className="modal-body">
+              <div className="form-group">
+                <label>Request Name</label>
+                <input
+                  type="text"
+                  placeholder="Enter request name (optional)"
+                  value={collectionSaveConfig.requestName}
+                  onChange={(e) => setCollectionSaveConfig({...collectionSaveConfig, requestName: e.target.value})}
+                />
+                <small>Default: {method} {url}</small>
+              </div>
+
+              <div className="form-group">
+                <label className="checkbox-label">
+                  <input
+                    type="checkbox"
+                    checked={collectionSaveConfig.createNewCollection}
+                    onChange={(e) => setCollectionSaveConfig({
+                      ...collectionSaveConfig,
+                      createNewCollection: e.target.checked,
+                      selectedCollectionId: e.target.checked ? '' : collectionSaveConfig.selectedCollectionId,
+                      selectedFolderId: ''
+                    })}
+                  />
+                  Create New Collection
+                </label>
+              </div>
+
+              {collectionSaveConfig.createNewCollection ? (
+                <div className="form-group">
+                  <label>New Collection Name *</label>
+                  <input
+                    type="text"
+                    placeholder="Enter collection name"
+                    value={collectionSaveConfig.newCollectionName}
+                    onChange={(e) => setCollectionSaveConfig({...collectionSaveConfig, newCollectionName: e.target.value})}
+                  />
+                </div>
+              ) : (
+                <>
+                  <div className="form-group">
+                    <label>Select Collection *</label>
+                    <select
+                      value={collectionSaveConfig.selectedCollectionId}
+                      onChange={(e) => setCollectionSaveConfig({
+                        ...collectionSaveConfig, 
+                        selectedCollectionId: e.target.value,
+                        selectedFolderId: ''
+                      })}
+                    >
+                      <option value="">-- Select a collection --</option>
+                      {collections.map(collection => (
+                        <option key={collection.id} value={collection.id}>
+                          {collection.name}
+                        </option>
+                      ))}
+                    </select>
+                    {collections.length === 0 && (
+                      <small className="text-warning">No collections available. Create a new collection instead.</small>
+                    )}
+                  </div>
+
+                  {collectionSaveConfig.selectedCollectionId && (
+                    <div className="form-group">
+                      <label>Select Folder (Optional)</label>
+                      <select
+                        value={collectionSaveConfig.selectedFolderId}
+                        onChange={(e) => setCollectionSaveConfig({...collectionSaveConfig, selectedFolderId: e.target.value})}
+                      >
+                        <option value="">-- Save to collection root --</option>
+                        {collections
+                          .find(c => c.id === parseInt(collectionSaveConfig.selectedCollectionId))
+                          ?.folders?.map(folder => (
+                            <option key={folder.id} value={folder.id}>
+                              📁 {folder.name}
+                            </option>
+                          ))}
+                      </select>
+                      <small>Leave empty to save at collection level</small>
+                    </div>
+                  )}
+                </>
+              )}
+
+              <div className="api-preview">
+                <h4>API Configuration Preview</h4>
+                <div className="preview-item">
+                  <strong>Method:</strong> {method}
+                </div>
+                <div className="preview-item">
+                  <strong>URL:</strong> {url}
+                </div>
+                <div className="preview-item">
+                  <strong>Headers:</strong> {headers.filter(h => h.enabled && h.key).length} custom header(s)
+                </div>
+                {body && (
+                  <div className="preview-item">
+                    <strong>Body:</strong> {bodyType.toUpperCase()} ({body.length} characters)
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button
+                className="btn-secondary"
+                onClick={() => setShowSaveToCollectionModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn-primary"
+                onClick={handleSaveToCollectionSubmit}
+                disabled={saveToCollectionMutation.isPending}
+              >
+                {saveToCollectionMutation.isPending ? 'Saving...' : 'Save to Collection'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

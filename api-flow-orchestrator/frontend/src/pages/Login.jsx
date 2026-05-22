@@ -84,10 +84,11 @@ function Login({ onLogin }) {
             />
           </div>
 
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             className="login-button"
             disabled={loading}
+            style={{ color: '#ffffff' }}
           >
             {loading ? 'Signing in...' : 'Sign In'}
           </button>

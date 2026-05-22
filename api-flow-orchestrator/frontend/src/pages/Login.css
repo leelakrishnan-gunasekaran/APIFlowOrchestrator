@@ -34,7 +34,7 @@
 }
 
 .login-icon {
-  color: var(--primary-color);
+  color: var(--button-primary);
   margin-bottom: 15px;
 }
 
@@ -95,8 +95,8 @@
 
 .login-button {
   padding: 12px 24px;
-  background: var(--primary-color);
-  color: white;
+  background: var(--button-primary);
+  color: #ffffff !important;
   border: none;
   border-radius: 8px;
   font-size: 16px;
@@ -107,7 +107,7 @@
 }
 
 .login-button:hover:not(:disabled) {
-  background: var(--primary-hover);
+  background: var(--button-primary-hover);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
 }

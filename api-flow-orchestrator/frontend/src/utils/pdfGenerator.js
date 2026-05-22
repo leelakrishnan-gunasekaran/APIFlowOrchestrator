@@ -1,11 +1,16 @@
-// PDF Generation utility for API execution reports
-// Note: Install jspdf and jspdf-autotable: npm install jspdf jspdf-autotable
+// PDF Generation utility for API execution reports with enhanced charts
+import { jsPDF } from 'jspdf';
+import 'jspdf-autotable';
 
-export const generateExecutionReportPDF = async (groupName, nodes, latestRun) => {
+export const generateExecutionReportPDF = (groupName, nodes, latestRun) => {
   try {
-    // Dynamic import to avoid bundling if not used
-    const jsPDF = (await import('jspdf')).default;
-    const autoTable = (await import('jspdf-autotable')).default;
+    // Debug logging
+    console.log('PDF Generator - Input Data:', {
+      groupName,
+      nodesCount: nodes?.length,
+      latestRun: latestRun,
+      hasApiRunResults: latestRun?.apiRunResults?.length
+    });
     
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -13,136 +18,183 @@ export const generateExecutionReportPDF = async (groupName, nodes, latestRun) =>
     let yPosition = 20;
     
     // Title
-    doc.setFontSize(20);
-    doc.setFont(undefined, 'bold');
+    doc.setFontSize(22);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(31, 41, 55);
     doc.text('API Execution Report', pageWidth / 2, yPosition, { align: 'center' });
-    yPosition += 10;
+    yPosition += 12;
     
     // Group Name
-    doc.setFontSize(14);
-    doc.setFont(undefined, 'normal');
-    doc.text(`Group: ${groupName}`, 20, yPosition);
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(59, 130, 246);
+    doc.text(`Group: ${groupName}`, pageWidth / 2, yPosition, { align: 'center' });
     yPosition += 8;
     
     // Execution Date
     doc.setFontSize(10);
-    doc.text(`Generated: ${new Date().toLocaleString()}`, 20, yPosition);
+    doc.setTextColor(107, 114, 128);
+    doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth / 2, yPosition, { align: 'center' });
     yPosition += 15;
+    
+    // Draw separator line
+    doc.setDrawColor(229, 231, 235);
+    doc.setLineWidth(0.5);
+    doc.line(20, yPosition, pageWidth - 20, yPosition);
+    yPosition += 10;
     
     // Overall Performance Summary
     if (latestRun) {
-      doc.setFontSize(14);
-      doc.setFont(undefined, 'bold');
-      doc.text('Overall Performance', 20, yPosition);
-      yPosition += 8;
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(31, 41, 55);
+      doc.text('Overall Performance Summary', 20, yPosition);
+      yPosition += 10;
       
+      // Performance metrics in boxes
+      const boxWidth = (pageWidth - 60) / 3;
+      const boxHeight = 25;
+      const boxY = yPosition;
+      
+      // Calculate success/failure counts from apiRunResults
+      const apiResults = latestRun.apiRunResults || [];
+      const successfulCount = apiResults.filter(r => r.status === 'SUCCESS').length;
+      const failedCount = apiResults.filter(r => r.status === 'FAILED').length;
+      const totalAPIs = apiResults.length;
+      const successRate = totalAPIs > 0 ? (successfulCount / totalAPIs * 100) : 0;
+      doc.setFillColor(16, 185, 129);
+      doc.rect(20, boxY, boxWidth, boxHeight, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${successRate.toFixed(0)}%`, 20 + boxWidth / 2, boxY + 12, { align: 'center' });
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Success Rate', 20 + boxWidth / 2, boxY + 19, { align: 'center' });
+      
+      // Total Duration Box - sum all durations
+      const totalDuration = apiResults.reduce((sum, r) => sum + (r.duration || 0), 0);
+      doc.setFillColor(59, 130, 246);
+      doc.rect(30 + boxWidth, boxY, boxWidth, boxHeight, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${totalDuration}ms`, 30 + boxWidth + boxWidth / 2, boxY + 12, { align: 'center' });
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Total Duration', 30 + boxWidth + boxWidth / 2, boxY + 19, { align: 'center' });
+      
+      // API Count Box
+      doc.setFillColor(139, 92, 246);
+      doc.rect(40 + boxWidth * 2, boxY, boxWidth, boxHeight, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(20);
+      doc.setFont('helvetica', 'bold');
+      doc.text(`${totalAPIs}`, 40 + boxWidth * 2 + boxWidth / 2, boxY + 12, { align: 'center' });
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Total APIs', 40 + boxWidth * 2 + boxWidth / 2, boxY + 19, { align: 'center' });
+      
+      yPosition += boxHeight + 15;
+      
+      // Additional metrics
+      doc.setTextColor(31, 41, 55);
       doc.setFontSize(10);
-      doc.setFont(undefined, 'normal');
-      doc.text(`Status: ${latestRun.status}`, 20, yPosition);
+      doc.setFont('helvetica', 'normal');
+      doc.text(`Status: ${latestRun.status || 'N/A'}`, 20, yPosition);
       yPosition += 6;
-      doc.text(`Total Duration: ${latestRun.totalDurationMs} ms`, 20, yPosition);
+      doc.text(`Successful: ${successfulCount} | Failed: ${failedCount}`, 20, yPosition);
       yPosition += 6;
-      doc.text(`Successful: ${latestRun.successfulCount} | Failed: ${latestRun.failedCount}`, 20, yPosition);
-      yPosition += 6;
-      doc.text(`Execution Time: ${new Date(latestRun.startTime).toLocaleString()}`, 20, yPosition);
+      const executionTime = latestRun.executedAt ? new Date(latestRun.executedAt).toLocaleString() : 'N/A';
+      doc.text(`Execution Time: ${executionTime}`, 20, yPosition);
       yPosition += 15;
       
-      // Performance Graph (Simple bar representation)
+      // Performance Chart
       if (latestRun.apiRunResults && latestRun.apiRunResults.length > 0) {
         doc.setFontSize(14);
-        doc.setFont(undefined, 'bold');
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(31, 41, 55);
         doc.text('Performance Timeline', 20, yPosition);
         yPosition += 10;
         
-        // Draw simple bar chart
-        const maxDuration = Math.max(...latestRun.apiRunResults.map(r => r.durationMs || 0));
-        const barHeight = 8;
-        const maxBarWidth = pageWidth - 100;
+        // Draw enhanced bar chart
+        const chartHeight = Math.min(latestRun.apiRunResults.length * 12, 80);
+        const chartWidth = pageWidth - 100;
+        const chartX = 70;
+        const chartY = yPosition;
+        
+        // Draw chart background
+        doc.setFillColor(249, 250, 251);
+        doc.rect(chartX, chartY, chartWidth, chartHeight, 'F');
+        
+        // Draw grid lines
+        doc.setDrawColor(229, 231, 235);
+        doc.setLineWidth(0.2);
+        for (let i = 0; i <= 4; i++) {
+          const x = chartX + (chartWidth / 4) * i;
+          doc.line(x, chartY, x, chartY + chartHeight);
+        }
+        
+        const maxDuration = Math.max(...latestRun.apiRunResults.map(r => r.duration || 0), 1);
+        const barHeight = Math.min(chartHeight / latestRun.apiRunResults.length - 2, 8);
         
         latestRun.apiRunResults.forEach((result, index) => {
-          if (yPosition > pageHeight - 30) {
-            doc.addPage();
-            yPosition = 20;
+          const barY = chartY + (index * (chartHeight / latestRun.apiRunResults.length)) + 2;
+          const duration = result.duration || 0;
+          const barWidth = Math.max((duration / maxDuration) * (chartWidth - 10), 1);
+          
+          // Color based on status
+          if (result.status === 'SUCCESS') {
+            doc.setFillColor(16, 185, 129);
+          } else {
+            doc.setFillColor(239, 68, 68);
           }
           
-          const barWidth = (result.durationMs / maxDuration) * maxBarWidth;
-          const color = result.status === 'SUCCESS' ? [34, 197, 94] : [239, 68, 68];
+          // Draw bar - ensure positive dimensions
+          if (barWidth > 0 && barHeight > 0) {
+            doc.rect(chartX + 5, barY, barWidth, barHeight, 'F');
+          }
           
-          doc.setFillColor(...color);
-          doc.rect(70, yPosition - 5, barWidth, barHeight, 'F');
+          // API name (truncated if too long)
+          doc.setFontSize(7);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(31, 41, 55);
+          const apiName = (result.apiNodeName || 'Unknown').length > 15 
+            ? (result.apiNodeName || 'Unknown').substring(0, 15) + '...' 
+            : (result.apiNodeName || 'Unknown');
+          doc.text(apiName, 20, barY + barHeight - 1);
           
-          doc.setFontSize(8);
-          doc.setFont(undefined, 'normal');
-          doc.text(`${result.apiNodeName}`, 20, yPosition);
-          doc.text(`${result.durationMs} ms`, 75 + barWidth, yPosition);
-          
-          yPosition += barHeight + 4;
+          // Duration label
+          doc.setTextColor(107, 114, 128);
+          doc.text(`${duration}ms`, chartX + barWidth + 8, barY + barHeight - 1);
         });
+        
+        // Chart legend
+        yPosition = chartY + chartHeight + 8;
+        doc.setFontSize(8);
+        doc.setFillColor(16, 185, 129);
+        doc.circle(20, yPosition - 1, 2, 'F');
+        doc.setTextColor(107, 114, 128);
+        doc.text('Success', 25, yPosition);
+        
+        doc.setFillColor(239, 68, 68);
+        doc.circle(55, yPosition - 1, 2, 'F');
+        doc.text('Failed', 60, yPosition);
         
         yPosition += 10;
       }
     }
     
-    // API Details Table
-    if (yPosition > pageHeight - 60) {
-      doc.addPage();
-      yPosition = 20;
-    }
+    // Add new page for detailed results
+    doc.addPage();
+    yPosition = 20;
     
-    doc.setFontSize(14);
-    doc.setFont(undefined, 'bold');
-    doc.text('API Details', 20, yPosition);
+    // API Details Section
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(31, 41, 55);
+    doc.text('API Execution Details', 20, yPosition);
     yPosition += 10;
-    
-    // Prepare table data
-    const tableData = [];
-    
-    if (latestRun && latestRun.apiRunResults) {
-      latestRun.apiRunResults.forEach((result) => {
-        const node = nodes.find(n => n.id === result.apiNodeId);
-        if (node) {
-          tableData.push([
-            result.apiNodeName || node.name,
-            node.method,
-            node.url,
-            `${result.durationMs} ms`,
-            result.status,
-            result.statusCode || 'N/A'
-          ]);
-        }
-      });
-    } else {
-      // If no execution results, show configured APIs
-      nodes.forEach((node) => {
-        tableData.push([
-          node.name,
-          node.method,
-          node.url,
-          'Not executed',
-          'N/A',
-          'N/A'
-        ]);
-      });
-    }
-    
-    autoTable(doc, {
-      startY: yPosition,
-      head: [['API Name', 'Method', 'URL', 'Duration', 'Status', 'Code']],
-      body: tableData,
-      theme: 'grid',
-      headStyles: { fillColor: [59, 130, 246], fontStyle: 'bold' },
-      styles: { fontSize: 8, cellPadding: 3 },
-      columnStyles: {
-        0: { cellWidth: 35 },
-        1: { cellWidth: 20 },
-        2: { cellWidth: 60 },
-        3: { cellWidth: 25 },
-        4: { cellWidth: 25 },
-        5: { cellWidth: 15 }
-      }
-    });
-    
-    yPosition = doc.lastAutoTable.finalY + 15;
     
     // Detailed API Information
     if (latestRun && latestRun.apiRunResults) {
@@ -151,77 +203,167 @@ export const generateExecutionReportPDF = async (groupName, nodes, latestRun) =>
         if (!node) return;
         
         // Check if we need a new page
-        if (yPosition > pageHeight - 80) {
+        if (yPosition > pageHeight - 100) {
           doc.addPage();
           yPosition = 20;
         }
         
-        // API Header
-        doc.setFontSize(12);
-        doc.setFont(undefined, 'bold');
-        doc.text(`${index + 1}. ${result.apiNodeName || node.name}`, 20, yPosition);
-        yPosition += 8;
+        // API Header with colored background
+        const headerColor = result.status === 'SUCCESS' ? [16, 185, 129] : [239, 68, 68];
+        doc.setFillColor(...headerColor);
+        doc.rect(20, yPosition - 5, pageWidth - 40, 10, 'F');
         
-        // API Details
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(255, 255, 255);
+        doc.text(`${index + 1}. ${result.apiNodeName || node.name}`, 25, yPosition + 2);
+        yPosition += 12;
+        
+        // API Details Box
+        doc.setFillColor(249, 250, 251);
+        doc.setDrawColor(229, 231, 235);
+        doc.rect(20, yPosition, pageWidth - 40, 30, 'FD');
+        
         doc.setFontSize(9);
-        doc.setFont(undefined, 'normal');
-        doc.text(`Method: ${node.method}`, 25, yPosition);
-        yPosition += 5;
-        doc.text(`URL: ${node.url}`, 25, yPosition);
-        yPosition += 5;
-        doc.text(`Duration: ${result.durationMs} ms`, 25, yPosition);
-        yPosition += 5;
-        doc.text(`Status: ${result.status} (${result.statusCode || 'N/A'})`, 25, yPosition);
-        yPosition += 8;
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(31, 41, 55);
+        doc.text('Method:', 25, yPosition + 6);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(59, 130, 246);
+        doc.text(node.method, 50, yPosition + 6);
+        
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(31, 41, 55);
+        doc.text('URL:', 25, yPosition + 12);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(107, 114, 128);
+        const urlText = node.url.length > 60 ? node.url.substring(0, 60) + '...' : node.url;
+        doc.text(urlText, 50, yPosition + 12);
+        
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(31, 41, 55);
+        doc.text('Duration:', 25, yPosition + 18);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(107, 114, 128);
+        doc.text(`${result.duration || 0} ms`, 50, yPosition + 18);
+        
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(31, 41, 55);
+        doc.text('Status:', 25, yPosition + 24);
+        doc.setFont('helvetica', 'normal');
+        const statusColor = result.status === 'SUCCESS' ? [16, 185, 129] : [239, 68, 68];
+        doc.setTextColor(...statusColor);
+        doc.text(`${result.status} (${result.statusCode || 'N/A'})`, 50, yPosition + 24);
+        
+        yPosition += 35;
         
         // Request Body
-        if (result.request) {
-          doc.setFont(undefined, 'bold');
+        if (result.requestBody) {
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(31, 41, 55);
           doc.text('Request Body:', 25, yPosition);
-          yPosition += 5;
-          doc.setFont(undefined, 'normal');
+          yPosition += 6;
           
-          const requestLines = doc.splitTextToSize(result.request, pageWidth - 50);
-          requestLines.slice(0, 5).forEach(line => {
+          doc.setFontSize(8);
+          doc.setFont('courier', 'normal');
+          doc.setTextColor(107, 114, 128);
+          
+          const requestLines = doc.splitTextToSize(result.requestBody, pageWidth - 60);
+          const maxLinesPerPage = 15; // Show more lines
+          
+          for (let i = 0; i < requestLines.length; i++) {
+            // Check if we need a new page
             if (yPosition > pageHeight - 20) {
               doc.addPage();
               yPosition = 20;
+              doc.setFontSize(10);
+              doc.setFont('helvetica', 'bold');
+              doc.setTextColor(31, 41, 55);
+              doc.text('Request Body (continued):', 25, yPosition);
+              yPosition += 6;
+              doc.setFontSize(8);
+              doc.setFont('courier', 'normal');
+              doc.setTextColor(107, 114, 128);
             }
-            doc.text(line, 30, yPosition);
+            
+            doc.text(requestLines[i], 30, yPosition);
             yPosition += 4;
-          });
-          yPosition += 3;
+            
+            // Limit to maxLinesPerPage to avoid extremely long outputs
+            if (i >= maxLinesPerPage - 1 && requestLines.length > maxLinesPerPage) {
+              doc.text(`... (${requestLines.length - maxLinesPerPage} more lines)`, 30, yPosition);
+              yPosition += 4;
+              break;
+            }
+          }
+          
+          yPosition += 5;
         }
         
         // Response
         if (result.response) {
-          doc.setFont(undefined, 'bold');
-          doc.text('Response:', 25, yPosition);
-          yPosition += 5;
-          doc.setFont(undefined, 'normal');
+          if (yPosition > pageHeight - 50) {
+            doc.addPage();
+            yPosition = 20;
+          }
           
-          const responseLines = doc.splitTextToSize(result.response, pageWidth - 50);
-          responseLines.slice(0, 5).forEach(line => {
+          doc.setFontSize(10);
+          doc.setFont('helvetica', 'bold');
+          doc.setTextColor(31, 41, 55);
+          doc.text('Response:', 25, yPosition);
+          yPosition += 6;
+          
+          doc.setFontSize(8);
+          doc.setFont('courier', 'normal');
+          doc.setTextColor(107, 114, 128);
+          
+          const responseLines = doc.splitTextToSize(result.response, pageWidth - 60);
+          const maxLinesPerPage = 15; // Show more lines
+          
+          for (let i = 0; i < responseLines.length; i++) {
+            // Check if we need a new page
             if (yPosition > pageHeight - 20) {
               doc.addPage();
               yPosition = 20;
+              doc.setFontSize(10);
+              doc.setFont('helvetica', 'bold');
+              doc.setTextColor(31, 41, 55);
+              doc.text('Response (continued):', 25, yPosition);
+              yPosition += 6;
+              doc.setFontSize(8);
+              doc.setFont('courier', 'normal');
+              doc.setTextColor(107, 114, 128);
             }
-            doc.text(line, 30, yPosition);
+            
+            doc.text(responseLines[i], 30, yPosition);
             yPosition += 4;
-          });
-          yPosition += 3;
+            
+            // Limit to maxLinesPerPage to avoid extremely long outputs
+            if (i >= maxLinesPerPage - 1 && responseLines.length > maxLinesPerPage) {
+              doc.text(`... (${responseLines.length - maxLinesPerPage} more lines)`, 30, yPosition);
+              yPosition += 4;
+              break;
+            }
+          }
+          
+          yPosition += 5;
         }
         
         // Error Message
-        if (result.errorMessage) {
+        if (result.error) {
+          doc.setFillColor(254, 242, 242);
+          doc.setDrawColor(239, 68, 68);
+          doc.rect(25, yPosition, pageWidth - 50, 15, 'FD');
+          
           doc.setTextColor(239, 68, 68);
-          doc.setFont(undefined, 'bold');
-          doc.text('Error:', 25, yPosition);
-          yPosition += 5;
-          doc.setFont(undefined, 'normal');
-          doc.text(result.errorMessage, 30, yPosition);
-          doc.setTextColor(0, 0, 0);
-          yPosition += 5;
+          doc.setFontSize(9);
+          doc.setFont('helvetica', 'bold');
+          doc.text('Error:', 30, yPosition + 6);
+          doc.setFont('helvetica', 'normal');
+          const errorText = result.error.length > 80 ? result.error.substring(0, 80) + '...' : result.error;
+          doc.text(errorText, 30, yPosition + 11);
+          yPosition += 20;
         }
         
         yPosition += 10;
@@ -233,9 +375,10 @@ export const generateExecutionReportPDF = async (groupName, nodes, latestRun) =>
     for (let i = 1; i <= totalPages; i++) {
       doc.setPage(i);
       doc.setFontSize(8);
-      doc.setFont(undefined, 'normal');
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(107, 114, 128);
       doc.text(
-        `Page ${i} of ${totalPages}`,
+        `Page ${i} of ${totalPages} | Generated by API Flow Orchestrator`,
         pageWidth / 2,
         pageHeight - 10,
         { align: 'center' }
@@ -253,7 +396,7 @@ export const generateExecutionReportPDF = async (groupName, nodes, latestRun) =>
   }
 };
 
-// Fallback function if jsPDF is not installed
+// Fallback function if jsPDF fails
 export const generateSimpleReport = (groupName, nodes, latestRun) => {
   let report = `API Execution Report\n`;
   report += `======================\n\n`;

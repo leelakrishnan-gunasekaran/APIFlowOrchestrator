@@ -46,12 +46,12 @@ public class ApiRequest {
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "collection_id")
-    @JsonBackReference
+    @JsonBackReference("collection-requests")
     private Collections collection;
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "folder_id")
-    @JsonBackReference
+    @JsonBackReference("folder-requests")
     private Folder folder;
     
     @ElementCollection
@@ -61,7 +61,7 @@ public class ApiRequest {
     private Map<String, String> fieldMappings = new HashMap<>();
     
     @OneToMany(mappedBy = "apiRequest", cascade = CascadeType.ALL, orphanRemoval = true)
-    @JsonManagedReference
+    @JsonManagedReference("request-history")
     @OrderBy("executedAt DESC")
     private List<ApiRequestHistory> history = new ArrayList<>();
     

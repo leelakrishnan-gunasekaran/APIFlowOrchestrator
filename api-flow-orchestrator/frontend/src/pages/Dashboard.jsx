@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Play, Edit, Trash2, Search } from 'lucide-react';
+import { Plus, Play, Edit, Trash2, Search, MoreVertical, Link } from 'lucide-react';
 import { apiGroupService } from '../services/api';
 import './Dashboard.css';
 
@@ -12,6 +12,9 @@ function Dashboard() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupDescription, setNewGroupDescription] = useState('');
+  const [showMenuForGroup, setShowMenuForGroup] = useState(null);
+  const [showTriggerUrlModal, setShowTriggerUrlModal] = useState(false);
+  const [selectedGroupForTrigger, setSelectedGroupForTrigger] = useState(null);
 
   const { data: groups, isLoading } = useQuery({
     queryKey: ['apiGroups'],
@@ -52,10 +55,44 @@ function Dashboard() {
     }
   };
 
+  const handleShowTriggerUrl = (group) => {
+    setSelectedGroupForTrigger(group);
+    setShowTriggerUrlModal(true);
+    setShowMenuForGroup(null);
+  };
+
+  const getTriggerUrl = (groupId) => {
+    const baseUrl = window.location.origin;
+    return `${baseUrl}/api/execution/trigger/${groupId}`;
+  };
+
+  const handleCopyTriggerUrl = () => {
+    if (selectedGroupForTrigger) {
+      const url = getTriggerUrl(selectedGroupForTrigger.id);
+      navigator.clipboard.writeText(url).then(() => {
+        alert('Trigger URL copied to clipboard!');
+      });
+    }
+  };
+
   const filteredGroups = groups?.filter(group =>
     group.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     group.description?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      if (showMenuForGroup !== null) {
+        setShowMenuForGroup(null);
+      }
+    };
+    
+    if (showMenuForGroup !== null) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [showMenuForGroup]);
 
   if (isLoading) {
     return <div className="loading">Loading...</div>;
@@ -107,6 +144,32 @@ function Dashboard() {
                   >
                     <Trash2 size={18} />
                   </button>
+                  <div className="menu-container">
+                    <button
+                      className="icon-btn"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setShowMenuForGroup(showMenuForGroup === group.id ? null : group.id);
+                      }}
+                      title="More options"
+                    >
+                      <MoreVertical size={18} />
+                    </button>
+                    {showMenuForGroup === group.id && (
+                      <div className="dropdown-menu" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          className="dropdown-item"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleShowTriggerUrl(group);
+                          }}
+                        >
+                          <Link size={16} />
+                          Trigger URL
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
               <p className="group-description">{group.description || 'No description'}</p>
@@ -169,6 +232,48 @@ function Dashboard() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {showTriggerUrlModal && selectedGroupForTrigger && (
+        <div className="modal-overlay" onClick={() => setShowTriggerUrlModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h3>Trigger URL for "{selectedGroupForTrigger.name}"</h3>
+            <p className="modal-description">
+              Use this URL to trigger the API group execution from external tools like Jenkins, CI/CD pipelines, or cron jobs.
+            </p>
+            <div className="trigger-url-container">
+              <input
+                type="text"
+                className="input trigger-url-input"
+                value={getTriggerUrl(selectedGroupForTrigger.id)}
+                readOnly
+              />
+              <button
+                className="btn btn-primary"
+                onClick={handleCopyTriggerUrl}
+              >
+                Copy URL
+              </button>
+            </div>
+            <div className="modal-info">
+              <p><strong>HTTP Method:</strong> GET</p>
+              <p><strong>Authentication:</strong> Use Bearer token in Authorization header</p>
+              <p><strong>Example:</strong></p>
+              <code className="code-block">
+                curl -X GET "{getTriggerUrl(selectedGroupForTrigger.id)}" \<br/>
+                &nbsp;&nbsp;-H "Authorization: Bearer YOUR_TOKEN"
+              </code>
+            </div>
+            <div className="modal-actions">
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowTriggerUrlModal(false)}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

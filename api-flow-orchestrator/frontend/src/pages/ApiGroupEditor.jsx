@@ -4,7 +4,6 @@ import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
 import { apiGroupService, apiNodeService, executionService } from '../services/api';
 import VisualNodeEditor from '../components/VisualNodeEditor';
 import ExecutionResults from '../components/ExecutionResults';
-import PerformanceHeatmap from '../components/PerformanceHeatmap';
 import { generateExecutionReportPDF, generateSimpleReport } from '../utils/pdfGenerator';
 import './ApiGroupEditor.css';
 import { useState, useEffect } from 'react';
@@ -15,12 +14,6 @@ function ApiGroupEditor() {
   const queryClient = useQueryClient();
   const [showVariables, setShowVariables] = useState(false);
   const [generateApiResponse, setGenerateApiResponse] = useState(false);
-  
-  // Handle Performance Dashboard button click
-  const handleOpenPerformanceDashboard = () => {
-    const url = `/groups/${id}/performance`;
-    window.open(url, '_blank', 'noopener,noreferrer');
-  };
 
   const { data: group, isLoading } = useQuery({
     queryKey: ['apiGroup', id],
@@ -49,31 +42,43 @@ function ApiGroupEditor() {
   const executeMutation = useMutation({
     mutationFn: (groupId) => executionService.execute(groupId),
     onSuccess: async (response) => {
-      alert(`Execution completed! Status: ${response.data.status}`);
+      const data = response.data;
+      let message = `Execution completed!\n\nStatus: ${data.status}\nExecuted: ${data.executedNodes}/${data.totalNodes} nodes`;
+      
+      // Add error details if execution failed
+      if (data.status === 'FAILED' && data.results && data.results.length > 0) {
+        const failedNode = data.results[data.results.length - 1];
+        if (failedNode.error) {
+          message += `\n\nFailed Node: ${failedNode.nodeName}\nError: ${failedNode.error}`;
+        }
+      }
+      
+      alert(message);
       await queryClient.invalidateQueries(['executionRuns', id]);
       await queryClient.invalidateQueries(['latestRun', id]);
       
-      // Generate PDF if checkbox is checked
-      if (generateApiResponse) {
-        setTimeout(async () => {
-          await handleGeneratePDF();
+      // Generate PDF if checkbox is checked and execution was successful
+      if (generateApiResponse && data.status === 'SUCCESS') {
+        setTimeout(() => {
+          handleGeneratePDF();
         }, 1000); // Wait for data to refresh
       }
     },
     onError: (error) => {
-      alert(`Execution failed: ${error.message}`);
+      const errorMessage = error.response?.data?.error || error.message;
+      alert(`Execution failed: ${errorMessage}`);
     }
   });
   
   // Generate PDF report
-  const handleGeneratePDF = async () => {
+  const handleGeneratePDF = () => {
     if (!nodes || nodes.length === 0) {
       alert('No APIs configured in this group');
       return;
     }
     
     try {
-      const result = await generateExecutionReportPDF(
+      const result = generateExecutionReportPDF(
         group?.name || 'API Group',
         nodes,
         latestRun
@@ -85,16 +90,8 @@ function ApiGroupEditor() {
         throw new Error(result.error);
       }
     } catch (error) {
-      console.error('PDF generation failed, falling back to text report:', error);
-      // Fallback to simple text report
-      const result = generateSimpleReport(
-        group?.name || 'API Group',
-        nodes,
-        latestRun
-      );
-      if (result.success) {
-        alert(`Text report generated: ${result.fileName}\n\nNote: Install jsPDF for PDF generation:\nnpm install jspdf jspdf-autotable`);
-      }
+      console.error('PDF generation failed:', error);
+      alert(`Failed to generate PDF report: ${error.message}\n\nPlease check the browser console for details.`);
     }
   };
   
@@ -248,12 +245,10 @@ function ApiGroupEditor() {
           >
             📄 Generate Report Now
           </button>
-        </div>
-        <div className="control-bar-right">
           <button
             className="performance-dashboard-btn"
-            onClick={handleOpenPerformanceDashboard}
-            title="Open Performance Dashboard in new tab"
+            onClick={() => window.open(`/performance-dashboard/${id}`, '_blank')}
+            title="View performance dashboard and execution history"
           >
             📊 Performance Dashboard
           </button>
@@ -327,8 +322,6 @@ function ApiGroupEditor() {
           latestRun={latestRun}
           generateApiResponse={generateApiResponse}
         />
-        
-        <PerformanceHeatmap groupId={id} />
         
         <ExecutionResults groupId={id} />
       </div>

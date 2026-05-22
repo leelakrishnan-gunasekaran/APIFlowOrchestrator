@@ -189,25 +189,40 @@ const CollectionsSidebar = ({ onSelectRequest, selectedRequestId }) => {
 
     return (
       <div key={folder.id} className="folder-item" style={{ paddingLeft: `${level * 16}px` }}>
-        <div 
+        <div
           className="folder-header"
           onClick={() => toggleFolder(folder.id)}
           onContextMenu={(e) => handleContextMenu(e, 'folder', folder)}
         >
+          <span className="folder-arrow">{isExpanded ? '▼' : '▶'}</span>
           <span className="folder-icon">{isExpanded ? '📂' : '📁'}</span>
           <span className="folder-name">{folder.name}</span>
-          <button
-            className="add-request-btn"
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedCollectionId(folder.collection?.id);
-              setSelectedFolderId(folder.id);
-              setShowNewRequestModal(true);
-            }}
-            title="Add Request"
-          >
-            +
-          </button>
+          <div className="folder-actions">
+            <button
+              className="add-request-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedCollectionId(folder.collection?.id);
+                setSelectedFolderId(folder.id);
+                setShowNewRequestModal(true);
+              }}
+              title="Add Request"
+            >
+              +
+            </button>
+            <button
+              className="delete-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (confirm(`Delete folder "${folder.name}"?`)) {
+                  deleteFolderMutation.mutate(folder.id);
+                }
+              }}
+              title="Delete Folder"
+            >
+              −
+            </button>
+          </div>
         </div>
         
         {isExpanded && (
@@ -311,6 +326,18 @@ const CollectionsSidebar = ({ onSelectRequest, selectedRequestId }) => {
               title="Add Request"
             >
               +
+            </button>
+            <button
+              className="delete-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (confirm(`Delete collection "${collection.name}"?`)) {
+                  deleteCollectionMutation.mutate(collection.id);
+                }
+              }}
+              title="Delete Collection"
+            >
+              −
             </button>
           </div>
         </div>

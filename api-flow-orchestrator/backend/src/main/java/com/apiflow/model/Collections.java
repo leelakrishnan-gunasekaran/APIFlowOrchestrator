@@ -27,11 +27,11 @@ public class Collections {
     private String description;
     
     @OneToMany(mappedBy = "collection", cascade = CascadeType.ALL, orphanRemoval = true)
-    @JsonManagedReference
+    @JsonManagedReference("collection-folders")
     private List<Folder> folders = new ArrayList<>();
     
     @OneToMany(mappedBy = "collection", cascade = CascadeType.ALL, orphanRemoval = true)
-    @JsonManagedReference
+    @JsonManagedReference("collection-requests")
     private List<ApiRequest> requests = new ArrayList<>();
     
     @Column(name = "created_at")

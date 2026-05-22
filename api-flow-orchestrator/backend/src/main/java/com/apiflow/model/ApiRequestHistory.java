@@ -20,7 +20,7 @@ public class ApiRequestHistory {
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "api_request_id", nullable = false)
-    @JsonBackReference
+    @JsonBackReference("request-history")
     private ApiRequest apiRequest;
     
     @Column(nullable = false)

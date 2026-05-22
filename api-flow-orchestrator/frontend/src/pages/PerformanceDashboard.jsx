@@ -1,536 +1,481 @@
-import { useParams, useLocation } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
-import { ArrowLeft, Clock, CheckCircle, XCircle, BarChart3, GitCompare } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { X, ChevronRight, ChevronDown, ArrowLeft, GitCompare } from 'lucide-react';
 import { executionService, apiGroupService } from '../services/api';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import './PerformanceDashboard.css';
 
 function PerformanceDashboard() {
-  const { id } = useParams();
-  const location = useLocation();
-  const groupName = location.state?.groupName || 'API Group';
+  const { groupId } = useParams();
+  const navigate = useNavigate();
+  const [groupName, setGroupName] = useState('');
+  const [executionHistory, setExecutionHistory] = useState([]);
   const [selectedRun, setSelectedRun] = useState(null);
   const [selectedApi, setSelectedApi] = useState(null);
-  const [selectedForComparison, setSelectedForComparison] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [compareMode, setCompareMode] = useState(false);
+  const [selectedForCompare, setSelectedForCompare] = useState([]);
 
-  // Fetch group details
-  const { data: group } = useQuery({
-    queryKey: ['apiGroup', id],
-    queryFn: async () => {
-      const response = await apiGroupService.getById(id);
-      return response.data;
-    },
-  });
+  useEffect(() => {
+    fetchGroupDetails();
+    fetchExecutionHistory();
+  }, [groupId]);
 
-  // Fetch execution history
-  const { data: executionRuns = [], isLoading } = useQuery({
-    queryKey: ['executionHistory', id],
-    queryFn: async () => {
-      const response = await executionService.getRunsByGroup(id);
-      return response.data || [];
-    },
-  });
+  const fetchGroupDetails = async () => {
+    try {
+      const response = await apiGroupService.getById(groupId);
+      setGroupName(response.data?.name || 'API Group');
+    } catch (error) {
+      console.error('Error fetching group details:', error);
+    }
+  };
 
-  // Format date for history name
-  const formatHistoryName = (run) => {
-    const date = new Date(run.startTime);
-    const dateStr = date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: '2-digit' 
-    });
-    const timeStr = date.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
+  const fetchExecutionHistory = async () => {
+    try {
+      setLoading(true);
+      const response = await executionService.getRunsByGroup(groupId);
+      setExecutionHistory(response.data || []);
+    } catch (error) {
+      console.error('Error fetching execution history:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatDateTime = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
       minute: '2-digit',
       second: '2-digit'
     });
-    return `${group?.name || groupName}_${dateStr}_${timeStr}`;
   };
 
-  // Prepare chart data for selected run
-  const getChartData = () => {
-    if (!selectedRun || !selectedRun.apiRunResults) return [];
-    
-    return selectedRun.apiRunResults.map(result => ({
-      name: result.apiNodeName || `API ${result.sequenceOrder}`,
-      duration: result.durationMs || 0,
-      status: result.status
-    }));
+  const formatDuration = (ms) => {
+    if (!ms) return 'N/A';
+    if (ms < 1000) return `${ms}ms`;
+    return `${(ms / 1000).toFixed(2)}s`;
   };
 
-  // Handle checkbox selection for comparison
-  const handleComparisonSelect = (run, checked) => {
-    if (checked) {
-      if (selectedForComparison.length < 2) {
-        setSelectedForComparison([...selectedForComparison, run]);
-      }
-    } else {
-      setSelectedForComparison(selectedForComparison.filter(r => r.id !== run.id));
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'SUCCESS':
+        return '#4caf50';
+      case 'FAILED':
+        return '#f44336';
+      case 'PARTIAL_SUCCESS':
+        return '#ff9800';
+      default:
+        return '#9e9e9e';
     }
   };
 
-  // Handle run selection
   const handleRunClick = (run) => {
-    if (!compareMode) {
-      setSelectedRun(run);
+    if (compareMode) return; // Disable run selection in compare mode
+    setSelectedRun(selectedRun?.id === run.id ? null : run);
+    setSelectedApi(null);
+  };
+
+  const handleApiClick = (api) => {
+    // If clicking the same API, toggle it off, otherwise select the new API
+    if (selectedApi?.id === api.id) {
       setSelectedApi(null);
+    } else {
+      setSelectedApi(api);
     }
   };
 
-  // Handle compare button click
-  const handleCompare = () => {
-    if (selectedForComparison.length === 2) {
-      setCompareMode(true);
+  const handleClose = () => {
+    navigate(-1);
+  };
+
+  const handleCompareToggle = () => {
+    setCompareMode(!compareMode);
+    setSelectedForCompare([]);
+    if (!compareMode) {
       setSelectedRun(null);
       setSelectedApi(null);
     }
   };
 
-  // Exit compare mode
-  const handleExitCompare = () => {
-    setCompareMode(false);
-    setSelectedForComparison([]);
-  };
-
-  // Prepare comparison chart data
-  const getComparisonChartData = () => {
-    if (selectedForComparison.length !== 2) return [];
-    
-    const [run1, run2] = selectedForComparison;
-    const apiMap = new Map();
-    
-    // Collect all API names
-    run1.apiRunResults?.forEach(result => {
-      apiMap.set(result.apiNodeName, { name: result.apiNodeName });
-    });
-    
-    run2.apiRunResults?.forEach(result => {
-      if (!apiMap.has(result.apiNodeName)) {
-        apiMap.set(result.apiNodeName, { name: result.apiNodeName });
-      }
-    });
-    
-    // Build comparison data
-    const comparisonData = Array.from(apiMap.values()).map(item => {
-      const result1 = run1.apiRunResults?.find(r => r.apiNodeName === item.name);
-      const result2 = run2.apiRunResults?.find(r => r.apiNodeName === item.name);
-      
-      return {
-        name: item.name,
-        run1Duration: result1?.durationMs || 0,
-        run2Duration: result2?.durationMs || 0,
-        difference: (result2?.durationMs || 0) - (result1?.durationMs || 0),
-        percentChange: result1?.durationMs ? 
-          (((result2?.durationMs || 0) - result1.durationMs) / result1.durationMs * 100).toFixed(1) : 0
-      };
-    });
-    
-    return comparisonData;
-  };
-
-  // Calculate overall comparison stats
-  const getOverallComparison = () => {
-    if (selectedForComparison.length !== 2) return null;
-    
-    const [run1, run2] = selectedForComparison;
-    const diff = run2.totalDurationMs - run1.totalDurationMs;
-    const percentChange = ((diff / run1.totalDurationMs) * 100).toFixed(1);
-    
-    return {
-      run1Total: run1.totalDurationMs,
-      run2Total: run2.totalDurationMs,
-      difference: diff,
-      percentChange: percentChange,
-      improved: diff < 0
-    };
-  };
-
-  // Handle API selection
-  const handleApiClick = (api) => {
-    setSelectedApi(api);
-  };
-
-  // Format JSON for display
-  const formatJson = (jsonString) => {
-    try {
-      const parsed = JSON.parse(jsonString);
-      return JSON.stringify(parsed, null, 2);
-    } catch (e) {
-      return jsonString;
+  const handleCompareCheckbox = (run) => {
+    if (selectedForCompare.find(r => r.id === run.id)) {
+      setSelectedForCompare(selectedForCompare.filter(r => r.id !== run.id));
+    } else if (selectedForCompare.length < 2) {
+      setSelectedForCompare([...selectedForCompare, run]);
     }
   };
 
-  if (isLoading) {
+  const calculatePerformanceDiff = (duration1, duration2) => {
+    if (!duration1 || !duration2) return null;
+    const diff = duration2 - duration1;
+    const percentChange = ((diff / duration1) * 100).toFixed(1);
+    return { diff, percentChange };
+  };
+
+  const renderPerformanceChart = () => {
+    if (compareMode && selectedForCompare.length === 2) {
+      // Comparison mode
+      const run1 = selectedForCompare[0];
+      const run2 = selectedForCompare[1];
+      
+      const allDurations = [
+        ...run1.apiRunResults.map(r => r.duration || 0),
+        ...run2.apiRunResults.map(r => r.duration || 0)
+      ];
+      const maxDuration = Math.max(...allDurations);
+
+      return (
+        <div className="chart-container">
+          <h3>Performance Comparison</h3>
+          <div className="comparison-legend">
+            <div className="legend-item">
+              <span className="legend-color" style={{ backgroundColor: '#4caf50' }}></span>
+              <span>Run 1: {formatDateTime(run1.executedAt)}</span>
+            </div>
+            <div className="legend-item">
+              <span className="legend-color" style={{ backgroundColor: '#2196f3' }}></span>
+              <span>Run 2: {formatDateTime(run2.executedAt)}</span>
+            </div>
+          </div>
+          <div className="bar-chart">
+            {run1.apiRunResults.map((result1, index) => {
+              const result2 = run2.apiRunResults[index];
+              const diff = result2 ? calculatePerformanceDiff(result1.duration, result2.duration) : null;
+              
+              return (
+                <div key={result1.id || index} className="bar-item comparison-bar-item">
+                  <div className="bar-label">
+                    {result1.nodeName || `API ${index + 1}`}
+                    {diff && (
+                      <span className={`diff-indicator ${diff.diff > 0 ? 'slower' : 'faster'}`}>
+                        {diff.diff > 0 ? '+' : ''}{diff.percentChange}%
+                      </span>
+                    )}
+                  </div>
+                  <div className="comparison-bars">
+                    <div className="bar-wrapper">
+                      <div
+                        className="bar"
+                        style={{
+                          width: `${(result1.duration / maxDuration) * 100}%`,
+                          backgroundColor: '#4caf50'
+                        }}
+                      >
+                        <span className="bar-value">{formatDuration(result1.duration)}</span>
+                      </div>
+                    </div>
+                    {result2 && (
+                      <div className="bar-wrapper">
+                        <div
+                          className="bar"
+                          style={{
+                            width: `${(result2.duration / maxDuration) * 100}%`,
+                            backgroundColor: '#2196f3'
+                          }}
+                        >
+                          <span className="bar-value">{formatDuration(result2.duration)}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      );
+    }
+
+    if (!selectedRun || !selectedRun.apiRunResults || selectedRun.apiRunResults.length === 0) {
+      return <div className="no-data">Select an execution run to view performance chart</div>;
+    }
+
+    const maxDuration = Math.max(...selectedRun.apiRunResults.map(r => r.duration || 0));
+
     return (
-      <div className="performance-dashboard">
-        <div className="loading">Loading execution history...</div>
+      <div className="chart-container">
+        <h3>API Performance (Duration in ms)</h3>
+        <div className="bar-chart">
+          {selectedRun.apiRunResults.map((result, index) => (
+            <div key={result.id || index} className="bar-item">
+              <div className="bar-label">{result.nodeName || `API ${index + 1}`}</div>
+              <div className="bar-wrapper">
+                <div
+                  className="bar"
+                  style={{
+                    width: `${(result.duration / maxDuration) * 100}%`,
+                    backgroundColor: result.status === 'SUCCESS' ? '#4caf50' : '#f44336'
+                  }}
+                >
+                  <span className="bar-value">{formatDuration(result.duration)}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
-  }
+  };
 
   return (
-    <div className="performance-dashboard">
-      {/* Header */}
+    <div className="performance-dashboard-page">
       <div className="dashboard-header">
         <div className="header-left">
-          <button 
-            className="back-button" 
-            onClick={() => window.close()}
-            title="Close this tab"
-          >
+          <button className="back-button" onClick={handleClose}>
             <ArrowLeft size={20} />
-            Close
+            Back
           </button>
-          <div className="header-title">
-            <h1>📊 Performance Dashboard</h1>
-            <p>{group?.name || groupName}</p>
-          </div>
+          <h1>Performance Dashboard - {groupName}</h1>
         </div>
         <div className="header-right">
-          {!compareMode && (
-            <button 
-              onClick={handleCompare}
-              disabled={selectedForComparison.length !== 2}
-              className={`compare-button ${selectedForComparison.length === 2 ? 'enabled' : ''}`}
-              title="Select 2 executions to compare"
-            >
-              <GitCompare size={20} />
-              Compare ({selectedForComparison.length}/2)
-            </button>
-          )}
+          <button
+            className={`compare-button ${compareMode ? 'active' : ''}`}
+            onClick={handleCompareToggle}
+          >
+            <GitCompare size={18} />
+            {compareMode ? 'Exit Compare' : 'Compare'}
+          </button>
           {compareMode && (
-            <button onClick={handleExitCompare} className="exit-compare-button">
-              Exit Compare Mode
-            </button>
+            <span className="compare-info">
+              {selectedForCompare.length}/2 selected
+            </span>
           )}
         </div>
       </div>
 
-      <div className="dashboard-content">
-        {/* Left Panel - Execution History */}
-        <div className="history-panel">
-          <div className="panel-header">
-            <h2>Execution History</h2>
-            <span className="count-badge">{executionRuns.length} runs</span>
-          </div>
-          
-          <div className="history-list">
-            {executionRuns.length === 0 ? (
-              <div className="empty-state">
-                <BarChart3 size={48} />
-                <p>No execution history yet</p>
-                <span>Run your API flow to see results here</span>
-              </div>
-            ) : (
-              executionRuns.map((run) => (
-                <div
-                  key={run.id}
-                  className={`history-item ${selectedRun?.id === run.id ? 'selected' : ''} ${
-                    selectedForComparison.find(r => r.id === run.id) ? 'selected-for-comparison' : ''
-                  }`}
-                  onClick={() => handleRunClick(run)}
-                >
-                  <div className="history-item-header">
-                    <input
-                      type="checkbox"
-                      checked={selectedForComparison.some(r => r.id === run.id)}
-                      onChange={(e) => {
-                        e.stopPropagation();
-                        handleComparisonSelect(run, e.target.checked);
-                      }}
-                      disabled={!selectedForComparison.some(r => r.id === run.id) && selectedForComparison.length >= 2}
-                      className="comparison-checkbox"
-                      title="Select for comparison"
-                    />
-                    <span className="history-name">{formatHistoryName(run)}</span>
-                    <span className={`status-badge status-${run.status.toLowerCase()}`}>
-                      {run.status === 'COMPLETED' ? (
-                        <CheckCircle size={14} />
+      <div className="dashboard-content-grid">
+        {/* Left Section: Execution History */}
+        <div className="dashboard-section execution-history-section">
+          <h2>API Group Running History</h2>
+          {loading ? (
+            <div className="loading">Loading...</div>
+          ) : executionHistory.length === 0 ? (
+            <div className="no-data">No execution history available</div>
+          ) : (
+            <div className="history-list">
+              {executionHistory.map((run) => (
+                <div key={run.id} className={`history-item ${compareMode ? 'compare-mode' : ''}`}>
+                  <div
+                    className="history-header"
+                    onClick={() => handleRunClick(run)}
+                  >
+                    {compareMode && (
+                      <input
+                        type="checkbox"
+                        className="compare-checkbox"
+                        checked={selectedForCompare.some(r => r.id === run.id)}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          handleCompareCheckbox(run);
+                        }}
+                        disabled={!selectedForCompare.some(r => r.id === run.id) && selectedForCompare.length >= 2}
+                      />
+                    )}
+                    <div className="history-title">
+                      {!compareMode && (selectedRun?.id === run.id ? (
+                        <ChevronDown size={20} />
                       ) : (
-                        <XCircle size={14} />
-                      )}
-                      {run.status}
-                    </span>
-                  </div>
-                  <div className="history-item-details">
-                    <span className="detail-item">
-                      <Clock size={12} />
-                      {run.totalDurationMs} ms
-                    </span>
-                    <span className="detail-item success">
-                      ✓ {run.successfulCount}
-                    </span>
-                    <span className="detail-item failed">
-                      ✗ {run.failedCount}
-                    </span>
+                        <ChevronRight size={20} />
+                      ))}
+                      <span>
+                        {groupName}_{formatDateTime(run.executedAt)}
+                      </span>
+                    </div>
+                    <div className="history-meta">
+                      <span
+                        className="status-badge"
+                        style={{ backgroundColor: getStatusColor(run.status) }}
+                      >
+                        {run.status}
+                      </span>
+                      <span className="node-count">
+                        {run.executedNodes}/{run.totalNodes} APIs
+                      </span>
+                    </div>
                   </div>
                 </div>
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Middle Panel - API List & Details or Comparison */}
-        <div className="details-panel">
-          {compareMode && selectedForComparison.length === 2 ? (
-            <>
-              <div className="panel-header">
-                <h2>Comparison View</h2>
-              </div>
-              
-              <div className="comparison-info">
-                <div className="comparison-runs">
-                  <div className="comparison-run run1">
-                    <span className="run-label">Run 1:</span>
-                    <span className="run-name">{formatHistoryName(selectedForComparison[0])}</span>
-                  </div>
-                  <div className="comparison-run run2">
-                    <span className="run-label">Run 2:</span>
-                    <span className="run-name">{formatHistoryName(selectedForComparison[1])}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="overall-comparison">
-                <h3>Overall Performance</h3>
-                {(() => {
-                  const overall = getOverallComparison();
+        {/* Middle Section: APIs and Request/Response */}
+        <div className="dashboard-section-middle">
+          {/* APIs in the API Group */}
+          <div className="dashboard-section apis-list-section">
+            <h2>APIs in the API Group</h2>
+            {compareMode && selectedForCompare.length === 2 ? (
+              <div className="api-results-list comparison-api-list">
+                {selectedForCompare[0].apiRunResults.map((result1, index) => {
+                  const result2 = selectedForCompare[1].apiRunResults[index];
+                  const diff = result2 ? calculatePerformanceDiff(result1.duration, result2.duration) : null;
+                  
                   return (
-                    <div className="overall-stats">
-                      <div className="stat-row">
-                        <span className="stat-label">Run 1 Total:</span>
-                        <span className="stat-value run1-color">{overall.run1Total}ms</span>
-                      </div>
-                      <div className="stat-row">
-                        <span className="stat-label">Run 2 Total:</span>
-                        <span className="stat-value run2-color">{overall.run2Total}ms</span>
-                      </div>
-                      <div className="stat-row highlight">
-                        <span className="stat-label">Difference:</span>
-                        <span className={`stat-value ${overall.improved ? 'improved' : 'degraded'}`}>
-                          {overall.difference > 0 ? '+' : ''}{overall.difference}ms 
-                          ({overall.percentChange > 0 ? '+' : ''}{overall.percentChange}%)
-                          {overall.improved ? ' ⬇️ Faster' : ' ⬆️ Slower'}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })()}
-              </div>
-
-              <div className="api-comparison-list">
-                <h3>API-by-API Comparison</h3>
-                <div className="comparison-table-wrapper">
-                  <table className="comparison-table">
-                    <thead>
-                      <tr>
-                        <th>API Name</th>
-                        <th>Run 1 (ms)</th>
-                        <th>Run 2 (ms)</th>
-                        <th>Change</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {getComparisonChartData().map((item, index) => (
-                        <tr key={index}>
-                          <td className="api-name-cell">{item.name}</td>
-                          <td className="run1-color">{item.run1Duration}</td>
-                          <td className="run2-color">{item.run2Duration}</td>
-                          <td className={item.difference < 0 ? 'improved' : item.difference > 0 ? 'degraded' : 'neutral'}>
-                            {item.difference > 0 ? '+' : ''}{item.difference}ms 
-                            ({item.percentChange > 0 ? '+' : ''}{item.percentChange}%)
-                            {item.difference < 0 ? ' ⬇️' : item.difference > 0 ? ' ⬆️' : ' ➡️'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </>
-          ) : !selectedRun ? (
-            <div className="empty-state">
-              <p>Select an execution from history to view details</p>
-            </div>
-          ) : (
-            <>
-              <div className="panel-header">
-                <h2>API Execution Details</h2>
-                <span className="timestamp">
-                  {new Date(selectedRun.startTime).toLocaleString()}
-                </span>
-              </div>
-
-              {/* API List */}
-              <div className="api-list">
-                {selectedRun.apiRunResults && selectedRun.apiRunResults.length > 0 ? (
-                  selectedRun.apiRunResults.map((api, index) => (
-                    <div
-                      key={api.id || index}
-                      className={`api-item ${selectedApi?.id === api.id ? 'selected' : ''}`}
-                      onClick={() => handleApiClick(api)}
-                    >
-                      <div className="api-item-header">
-                        <span className="api-sequence">#{api.sequenceOrder}</span>
-                        <span className="api-name">{api.apiNodeName}</span>
-                        <span className={`api-status status-${api.status.toLowerCase()}`}>
-                          {api.status}
-                        </span>
-                      </div>
-                      <div className="api-item-meta">
-                        <span className="duration">{api.durationMs} ms</span>
-                        {api.statusCode && (
-                          <span className="status-code">HTTP {api.statusCode}</span>
-                        )}
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="empty-state">
-                    <p>No API results available</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Request/Response Details */}
-              {selectedApi && (
-                <div className="request-response-section">
-                  <div className="section-header">
-                    <h3>{selectedApi.apiNodeName}</h3>
-                  </div>
-
-                  <div className="request-response-grid">
-                    {/* Request */}
-                    <div className="code-block">
-                      <div className="code-block-header">
-                        <span>Request Body</span>
-                      </div>
-                      <pre className="code-content">
-                        {selectedApi.request ? formatJson(selectedApi.request) : 'No request body'}
-                      </pre>
-                    </div>
-
-                    {/* Response */}
-                    <div className="code-block">
-                      <div className="code-block-header">
-                        <span>Response</span>
-                        {selectedApi.statusCode && (
-                          <span className="status-code-badge">
-                            {selectedApi.statusCode}
+                    <div key={`compare-${index}`} className="comparison-api-group">
+                      <div className="api-name-header">
+                        <span className="api-name">{result1.nodeName || `API ${index + 1}`}</span>
+                        {diff && (
+                          <span className={`diff-indicator ${diff.diff > 0 ? 'slower' : 'faster'}`}>
+                            {diff.diff > 0 ? '+' : ''}{diff.percentChange}%
                           </span>
                         )}
                       </div>
-                      <pre className="code-content">
-                        {selectedApi.response ? formatJson(selectedApi.response) : 
-                         selectedApi.errorMessage || 'No response'}
-                      </pre>
+                      <div className="comparison-api-items">
+                        <div
+                          className={`api-result-item comparison-item run1 ${selectedApi?.id === result1.id ? 'selected' : ''}`}
+                          onClick={() => handleApiClick(result1)}
+                        >
+                          <div className="api-result-header">
+                            <div className="api-result-title">
+                              <span className="run-indicator" style={{ backgroundColor: '#4caf50' }}></span>
+                              <span className={`method-badge method-${(result1.method || '').toLowerCase()}`}>
+                                {result1.method || 'N/A'}
+                              </span>
+                              <span>Run 1</span>
+                            </div>
+                            <div className="api-result-meta">
+                              <span className="duration">{formatDuration(result1.duration)}</span>
+                              <span
+                                className="status-indicator"
+                                style={{ backgroundColor: getStatusColor(result1.status) }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                        {result2 && (
+                          <div
+                            className={`api-result-item comparison-item run2 ${selectedApi?.id === result2.id ? 'selected' : ''}`}
+                            onClick={() => handleApiClick(result2)}
+                          >
+                            <div className="api-result-header">
+                              <div className="api-result-title">
+                                <span className="run-indicator" style={{ backgroundColor: '#2196f3' }}></span>
+                                <span className={`method-badge method-${(result2.method || '').toLowerCase()}`}>
+                                  {result2.method || 'N/A'}
+                                </span>
+                                <span>Run 2</span>
+                              </div>
+                              <div className="api-result-meta">
+                                <span className="duration">{formatDuration(result2.duration)}</span>
+                                <span
+                                  className="status-indicator"
+                                  style={{ backgroundColor: getStatusColor(result2.status) }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : selectedRun && selectedRun.apiRunResults ? (
+              <div className="api-results-list">
+                {selectedRun.apiRunResults.map((result, index) => (
+                  <div key={result.id || index} className="api-result-item">
+                    <div
+                      className="api-result-header"
+                      onClick={() => handleApiClick(result)}
+                    >
+                      <div className="api-result-title">
+                        {selectedApi?.id === result.id ? (
+                          <ChevronDown size={16} />
+                        ) : (
+                          <ChevronRight size={16} />
+                        )}
+                        <span className={`method-badge method-${(result.method || '').toLowerCase()}`}>
+                          {result.method || 'N/A'}
+                        </span>
+                        <span>{result.nodeName || `API ${index + 1}`}</span>
+                      </div>
+                      <div className="api-result-meta">
+                        <span className="duration">{formatDuration(result.duration)}</span>
+                        <span
+                          className="status-indicator"
+                          style={{ backgroundColor: getStatusColor(result.status) }}
+                        />
+                      </div>
                     </div>
                   </div>
-
-                  {/* Error Message */}
-                  {selectedApi.errorMessage && (
-                    <div className="error-message">
-                      <strong>Error:</strong> {selectedApi.errorMessage}
-                    </div>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* Right Panel - Performance Chart */}
-        <div className="chart-panel">
-          <div className="panel-header">
-            <h2>Performance Chart</h2>
+                ))}
+              </div>
+            ) : (
+              <div className="no-data">Select an execution run to view APIs</div>
+            )}
           </div>
 
-          {compareMode && selectedForComparison.length === 2 ? (
-            <div className="chart-container">
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={getComparisonChartData()} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="name" 
-                    angle={-45} 
-                    textAnchor="end" 
-                    height={100}
-                    interval={0}
-                  />
-                  <YAxis label={{ value: 'Duration (ms)', angle: -90, position: 'insideLeft' }} />
-                  <Tooltip />
-                  <Legend />
-                  <Bar 
-                    dataKey="run1Duration" 
-                    fill="#3b82f6" 
-                    name="Run 1"
-                    radius={[8, 8, 0, 0]}
-                  />
-                  <Bar 
-                    dataKey="run2Duration" 
-                    fill="#10b981" 
-                    name="Run 2"
-                    radius={[8, 8, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          ) : !selectedRun ? (
-            <div className="empty-state">
-              <BarChart3 size={48} />
-              <p>Select an execution to view performance</p>
-            </div>
-          ) : (
-            <div className="chart-container">
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={getChartData()} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis 
-                    dataKey="name" 
-                    angle={-45} 
-                    textAnchor="end" 
-                    height={100}
-                    interval={0}
-                  />
-                  <YAxis label={{ value: 'Duration (ms)', angle: -90, position: 'insideLeft' }} />
-                  <Tooltip />
-                  <Legend />
-                  <Bar 
-                    dataKey="duration" 
-                    fill="#3b82f6" 
-                    name="Duration (ms)"
-                    radius={[8, 8, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-
-              {/* Summary Stats */}
-              <div className="chart-stats">
-                <div className="stat-card">
-                  <span className="stat-label">Total Duration</span>
-                  <span className="stat-value">{selectedRun.totalDurationMs} ms</span>
-                </div>
-                <div className="stat-card">
-                  <span className="stat-label">Average</span>
-                  <span className="stat-value">
-                    {selectedRun.apiRunResults?.length > 0
-                      ? Math.round(selectedRun.totalDurationMs / selectedRun.apiRunResults.length)
-                      : 0} ms
-                  </span>
-                </div>
-                <div className="stat-card success">
-                  <span className="stat-label">Successful</span>
-                  <span className="stat-value">{selectedRun.successfulCount}</span>
-                </div>
-                <div className="stat-card failed">
-                  <span className="stat-label">Failed</span>
-                  <span className="stat-value">{selectedRun.failedCount}</span>
-                </div>
+          {/* Request and Response */}
+          <div className="dashboard-section request-response-section">
+            <div className="request-response-grid">
+              <div className="request-section">
+                <h3>Request</h3>
+                {selectedApi ? (
+                  <div className="detail-content">
+                    <p><strong>URL:</strong> {selectedApi.url || 'N/A'}</p>
+                    <p><strong>Method:</strong> {selectedApi.method || 'N/A'}</p>
+                    <p><strong>Status Code:</strong> {selectedApi.statusCode || 'N/A'}</p>
+                    <p><strong>Duration:</strong> {formatDuration(selectedApi.duration)}</p>
+                    {selectedApi.requestBody && (
+                      <>
+                        <p><strong>Request Body:</strong></p>
+                        <pre className="response-body">
+                          {(() => {
+                            try {
+                              const parsed = typeof selectedApi.requestBody === 'string'
+                                ? JSON.parse(selectedApi.requestBody)
+                                : selectedApi.requestBody;
+                              return JSON.stringify(parsed, null, 2);
+                            } catch (e) {
+                              return selectedApi.requestBody;
+                            }
+                          })()}
+                        </pre>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  <div className="no-data">Select an API to view request details</div>
+                )}
+              </div>
+              <div className="response-section">
+                <h3>Response</h3>
+                {selectedApi ? (
+                  <div className="detail-content">
+                    {selectedApi.error ? (
+                      <div className="error-message">
+                        <strong>Error:</strong> {selectedApi.error}
+                      </div>
+                    ) : (
+                      <pre className="response-body">
+                        {selectedApi.response ? (() => {
+                          try {
+                            const parsed = typeof selectedApi.response === 'string'
+                              ? JSON.parse(selectedApi.response)
+                              : selectedApi.response;
+                            return JSON.stringify(parsed, null, 2);
+                          } catch (e) {
+                            return selectedApi.response;
+                          }
+                        })() : 'No response data'}
+                      </pre>
+                    )}
+                  </div>
+                ) : (
+                  <div className="no-data">Select an API to view response</div>
+                )}
               </div>
             </div>
-          )}
+          </div>
+        </div>
+
+        {/* Right Section: Performance Chart */}
+        <div className="dashboard-section performance-chart-section">
+          <h2>Performance Chart</h2>
+          {renderPerformanceChart()}
         </div>
       </div>
     </div>

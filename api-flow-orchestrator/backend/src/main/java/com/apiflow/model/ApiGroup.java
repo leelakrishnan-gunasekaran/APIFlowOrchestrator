@@ -27,15 +27,15 @@ public class ApiGroup {
     private String description;
     
     @OneToMany(mappedBy = "apiGroup", cascade = CascadeType.ALL, orphanRemoval = true)
-    @JsonManagedReference
+    @JsonManagedReference("apigroup-nodes")
     private List<ApiNode> apiNodes = new ArrayList<>();
     
     @OneToMany(mappedBy = "apiGroup", cascade = CascadeType.ALL, orphanRemoval = true)
-    @JsonManagedReference
+    @JsonManagedReference("apigroup-variables")
     private List<HookVariable> hookVariables = new ArrayList<>();
     
     @OneToOne(mappedBy = "apiGroup", cascade = CascadeType.ALL, orphanRemoval = true)
-    @JsonManagedReference
+    @JsonManagedReference("apigroup-authprofile")
     private AuthProfile authProfile;
     
     @Column(name = "created_at")

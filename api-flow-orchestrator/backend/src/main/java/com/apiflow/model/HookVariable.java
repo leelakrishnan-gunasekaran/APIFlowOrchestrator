@@ -32,7 +32,7 @@ public class HookVariable {
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "api_group_id")
-    @JsonBackReference
+    @JsonBackReference("apigroup-variables")
     private ApiGroup apiGroup;
     
     @Column(name = "created_at")

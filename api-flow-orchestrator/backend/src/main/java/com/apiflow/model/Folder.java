@@ -29,20 +29,20 @@ public class Folder {
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "collection_id")
-    @JsonBackReference
+    @JsonBackReference("collection-folders")
     private Collections collection;
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_folder_id")
-    @JsonBackReference
+    @JsonBackReference("folder-subfolders")
     private Folder parentFolder;
     
     @OneToMany(mappedBy = "parentFolder", cascade = CascadeType.ALL, orphanRemoval = true)
-    @JsonManagedReference
+    @JsonManagedReference("folder-subfolders")
     private List<Folder> subFolders = new ArrayList<>();
     
     @OneToMany(mappedBy = "folder", cascade = CascadeType.ALL, orphanRemoval = true)
-    @JsonManagedReference
+    @JsonManagedReference("folder-requests")
     private List<ApiRequest> requests = new ArrayList<>();
     
     @Column(name = "sequence_order")

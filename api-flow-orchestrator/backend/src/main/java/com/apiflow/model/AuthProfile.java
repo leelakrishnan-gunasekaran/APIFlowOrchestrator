@@ -29,7 +29,7 @@ public class AuthProfile {
     
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "api_group_id")
-    @JsonBackReference
+    @JsonBackReference("apigroup-authprofile")
     private ApiGroup apiGroup;
     
     @Column(name = "created_at")

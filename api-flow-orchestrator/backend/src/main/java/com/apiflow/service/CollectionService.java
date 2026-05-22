@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -23,12 +24,62 @@ public class CollectionService {
     private final FolderRepository folderRepository;
     private final ApiRequestRepository apiRequestRepository;
     
+    @Transactional(readOnly = true)
     public List<Collections> getAllCollections() {
-        return collectionRepository.findAll();
+        List<Collections> collections = collectionRepository.findAll();
+        
+        // Eagerly initialize lazy-loaded relationships
+        collections.forEach(collection -> {
+            // Initialize folders and their nested relationships
+            collection.getFolders().size();
+            collection.getFolders().forEach(folder -> {
+                folder.getSubFolders().size();
+                folder.getRequests().size();
+                folder.getRequests().forEach(request -> {
+                    if (request.getHistory() != null) {
+                        request.getHistory().size();
+                    }
+                });
+            });
+            
+            // Initialize requests at collection level
+            collection.getRequests().size();
+            collection.getRequests().forEach(request -> {
+                if (request.getHistory() != null) {
+                    request.getHistory().size();
+                }
+            });
+        });
+        
+        return collections;
     }
     
+    @Transactional(readOnly = true)
     public Optional<Collections> getCollectionById(Long id) {
-        return collectionRepository.findById(id);
+        Optional<Collections> collectionOpt = collectionRepository.findById(id);
+        
+        // Eagerly initialize lazy-loaded relationships
+        collectionOpt.ifPresent(collection -> {
+            collection.getFolders().size();
+            collection.getFolders().forEach(folder -> {
+                folder.getSubFolders().size();
+                folder.getRequests().size();
+                folder.getRequests().forEach(request -> {
+                    if (request.getHistory() != null) {
+                        request.getHistory().size();
+                    }
+                });
+            });
+            
+            collection.getRequests().size();
+            collection.getRequests().forEach(request -> {
+                if (request.getHistory() != null) {
+                    request.getHistory().size();
+                }
+            });
+        });
+        
+        return collectionOpt;
     }
     
     public List<Collections> searchCollections(String name) {

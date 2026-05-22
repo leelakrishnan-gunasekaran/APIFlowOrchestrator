@@ -43,7 +43,7 @@ public class ApiNode {
     
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "api_group_id")
-    @JsonBackReference
+    @JsonBackReference("apigroup-nodes")
     private ApiGroup apiGroup;
     
     @ElementCollection

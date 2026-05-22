@@ -144,7 +144,7 @@ function App() {
           <Route path="/" element={<Dashboard />} />
           <Route path="/groups" element={<Dashboard />} />
           <Route path="/groups/:id" element={<ApiGroupEditor />} />
-          <Route path="/groups/:id/performance" element={<PerformanceDashboard />} />
+          <Route path="/performance-dashboard/:groupId" element={<PerformanceDashboard />} />
           <Route path="/tester" element={<ApiTesterRefactored />} />
           <Route path="/history" element={<ExecutionHistory />} />
           <Route path="*" element={<Navigate to="/groups" replace />} />
